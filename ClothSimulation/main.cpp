@@ -153,9 +153,9 @@ int main(int argc, const char * argv[])
         
         if (running) {
             for (int i = 0; i < cloth.iterationFreq; i ++) {
-                cloth.computeForce(TIME_STEP, gravity);
-                cloth.integrate(AIR_FRICTION, TIME_STEP);
-                cloth.collisionResponse(&ground, &ball);
+                cloth.simulation(TIME_STEP, gravity, &ground, &ball);
+                // cloth.integrate(AIR_FRICTION, TIME_STEP);
+                // cloth.collisionResponse(&ground, &ball);
             }
             cloth.computeNormal();
         }

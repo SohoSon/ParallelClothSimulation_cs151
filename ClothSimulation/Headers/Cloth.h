@@ -36,14 +36,16 @@ public:
     
     // add parallel control variables
     bool enable_parallel = true;  // control whether to enable parallel
-    int num_threads = 4;         // control thread number
-    
+    int num_threads = 4;          // control thread number  
+
 	Cloth(Vec3 pos, Vec2 size)
 	{
         clothPos = pos;
         width = size.x;
         height = size.y;
         init();
+
+       
 	}
 	~Cloth()
 	{ 
@@ -52,6 +54,7 @@ public:
 		nodes.clear();
 		springs.clear();
 		faces.clear();
+        
 	}
  
 public:
@@ -169,27 +172,114 @@ public:
 		}
 	}
 
-    void computeForce(double timeStep, Vec3 gravity) {
+    void simulation(double timeStep, Vec3 gravity, Ground* ground, Ball* ball) {
         // init
         double total_start = omp_get_wtime();
-        double spring_time = 0.0;
-
-        
-
+        double simulation_time = 0.0;
+        // for(int i = 0; i < nodes.size(); i++) {
+        //     nodes[i]->TempSpringCount = nodes[i]->SpringCount;
+        // }
         // spring force calculation
         {
             double start = omp_get_wtime();
             if (enable_parallel) {
-                #pragma omp parallel for num_threads(num_threads)
+                #pragma omp parallel for num_threads(num_threads) schedule(static, 256)
                 for (int i = 0; i < springs.size(); i++) {
                     springs[i]->applyInternalForce(timeStep);
+                 
+                    // omp_set_lock(&node_locks[springs[i]->node1]);
+                    // omp_set_lock(&node_locks[springs[i]->node2]);
+                    springs[i]->node1->TempSpringCount--;
+                    springs[i]->node2->TempSpringCount--;
+                //     omp_unset_lock(&node_locks[springs[i]->node1]);
+                // omp_unset_lock(&node_locks[springs[i]->node2]);
+                    if (springs[i]->node1->TempSpringCount <= 0) {
+                        springs[i]->node1->TempSpringCount = springs[i]->node1->SpringCount;
+                        springs[i]->node1->integrate(timeStep);
+                        /** Ground collision **/
+                        if (getWorldPos(springs[i]->node1).y < ground->position.y) {
+                            springs[i]->node1->position.y = ground->position.y - clothPos.y + 0.01;
+                            springs[i]->node1->velocity = springs[i]->node1->velocity * ground->friction;
+                        }
+                        
+                        /** Ball collision **/
+                        Vec3 distVec = getWorldPos(springs[i]->node1) - ball->center;
+                        double distLen = distVec.length();
+                        double safeDist = ball->radius*1.05;
+                        if (distLen < safeDist) {
+                            distVec.normalize();
+                            setWorldPos(springs[i]->node1, distVec*safeDist+ball->center);
+                            springs[i]->node1->velocity = springs[i]->node1->velocity * ball->friction;
+                        }
+                    }
+                    if (springs[i]->node2->TempSpringCount <= 0) {
+                        springs[i]->node2->integrate(timeStep);
+                        springs[i]->node2->TempSpringCount = springs[i]->node2->SpringCount;
+                        /** Ground collision **/
+                        if (getWorldPos(springs[i]->node2).y < ground->position.y) {
+                            springs[i]->node2->position.y = ground->position.y - clothPos.y + 0.01;
+                            springs[i]->node2->velocity = springs[i]->node2->velocity * ground->friction;
+                        }
+                        
+                        /** Ball collision **/
+                        Vec3 distVec = getWorldPos(springs[i]->node2) - ball->center;
+                        double distLen = distVec.length();
+                        double safeDist = ball->radius*1.05;
+                        if (distLen < safeDist) {
+                            distVec.normalize();
+                            setWorldPos(springs[i]->node2, distVec*safeDist+ball->center);
+                            springs[i]->node2->velocity = springs[i]->node2->velocity * ball->friction;
+                        }
+                    }
                 }
             } else {
                 for (int i = 0; i < springs.size(); i++) {
                     springs[i]->applyInternalForce(timeStep);
+                    
+                    springs[i]->node1->TempSpringCount--;
+                    springs[i]->node2->TempSpringCount--;
+                 
+                    if (springs[i]->node1->TempSpringCount == 0) {
+                        springs[i]->node1->integrate(timeStep);
+                        springs[i]->node1->TempSpringCount = springs[i]->node1->SpringCount;
+                        /** Ground collision **/
+                        if (getWorldPos(springs[i]->node1).y < ground->position.y) {
+                            springs[i]->node1->position.y = ground->position.y - clothPos.y + 0.01;
+                            springs[i]->node1->velocity = springs[i]->node1->velocity * ground->friction;
+                        }
+                        
+                        /** Ball collision **/
+                        Vec3 distVec = getWorldPos(springs[i]->node1) - ball->center;
+                        double distLen = distVec.length();
+                        double safeDist = ball->radius*1.05;
+                        if (distLen < safeDist) {
+                            distVec.normalize();
+                            setWorldPos(springs[i]->node1, distVec*safeDist+ball->center);
+                            springs[i]->node1->velocity = springs[i]->node1->velocity * ball->friction;
+                        }
+                    }
+                    if (springs[i]->node2->TempSpringCount == 0) {
+                        springs[i]->node2->integrate(timeStep);
+                        springs[i]->node2->TempSpringCount = springs[i]->node2->SpringCount;
+                        /** Ground collision **/
+                        if (getWorldPos(springs[i]->node2).y < ground->position.y) {
+                            springs[i]->node2->position.y = ground->position.y - clothPos.y + 0.01;
+                            springs[i]->node2->velocity = springs[i]->node2->velocity * ground->friction;
+                        }
+                        
+                        /** Ball collision **/
+                        Vec3 distVec = getWorldPos(springs[i]->node2) - ball->center;
+                        double distLen = distVec.length();
+                        double safeDist = ball->radius*1.05;
+                        if (distLen < safeDist) {
+                            distVec.normalize();
+                            setWorldPos(springs[i]->node2, distVec*safeDist+ball->center);
+                            springs[i]->node2->velocity = springs[i]->node2->velocity * ball->friction;
+                        }
+                    }
                 }
             }
-            spring_time = omp_get_wtime() - start;
+            simulation_time = omp_get_wtime() - start;
         }
 
         double total_time = omp_get_wtime() - total_start;
@@ -214,7 +304,7 @@ public:
                 std::cout << "performance data:\n"
                         << "FPS: " << std::fixed << std::setprecision(2) << fps << "\n"
                         << "total time: " << total_time * 1000 << " ms\n"
-                        << "spring calc time: " << spring_time * 1000 << " ms\n"
+                        << "spring calc time: " << simulation_time * 1000 << " ms\n"
                         //<< "Current threads: " << omp_get_max_threads() << "\n"
                         << "Current threads: " << num_threads << "\n"
                         << "total nodes: " << nodes.size() << "\n"
@@ -224,13 +314,13 @@ public:
         }
     }
 
-	void integrate(double airFriction, double timeStep)
-	{
-        for (int i = 0; i < nodes.size(); i++) {
-            nodes[i]->integrate(timeStep);
-        }
+	// void integrate(double airFriction, double timeStep)
+	// {
+    //     for (int i = 0; i < nodes.size(); i++) {
+    //         nodes[i]->integrate(timeStep);
+    //     }
         
-	}
+	// }
 	
     Vec3 getWorldPos(Node* n) { return clothPos + n->position; }
     void setWorldPos(Node* n, Vec3 pos) { n->position = pos - clothPos; }

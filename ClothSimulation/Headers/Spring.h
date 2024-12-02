@@ -4,7 +4,7 @@
 
 using namespace std;
 
-class Spring
+class alignas(64) Spring
 {
 public:
     Node *node1;
@@ -17,7 +17,10 @@ public:
 	{
         node1 = n1;
         node2 = n2;
-		
+        node1->SpringCount++;
+        node2->SpringCount++;
+        node1->TempSpringCount++;
+        node2->TempSpringCount++;
         Vec3 currSp = node2->position - node1->position;
         restLen = currSp.length();
         hookCoef = k;

@@ -16,7 +16,7 @@ public:
     ~Vertex() {}
 };
 
-class Node
+class alignas(64) Node
 {
 public:
     double  mass;           // In this project it will always be 1
@@ -27,6 +27,10 @@ public:
     Vec3    velocity;
     Vec3    force;
 	Vec3	acceleration;
+    int     SpringCount;
+    // std::atomic<int>     TempSpringCount;
+    int     TempSpringCount;
+
 
 public:
     Node(void) {
@@ -35,6 +39,8 @@ public:
         velocity.setZeroVec();
         force.setInitVec();
         acceleration.setZeroVec();
+        SpringCount = 0;
+        TempSpringCount = 0;
     }
 	Node(Vec3 pos)
     {
@@ -44,6 +50,8 @@ public:
         velocity.setZeroVec();
         force.setInitVec();
         acceleration.setZeroVec();
+        SpringCount = 0;
+        TempSpringCount = 0;
     }
 	~Node(void) {}
 
