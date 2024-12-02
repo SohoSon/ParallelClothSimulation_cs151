@@ -5,7 +5,7 @@
 #include <chrono>
 #include "Spring.h"
 #include "Rigid.h"
-
+#include <iomanip> 
 class Cloth
 {
 public:
@@ -33,6 +33,10 @@ public:
     
     Vec2 pin1;
     Vec2 pin2;
+    
+    // 添加并行化控制变量
+    bool enable_parallel = true;  // 控制是否启用并行
+    int num_threads = 4;         // 控制线程数
     
 	Cloth(Vec3 pos, Vec2 size)
 	{
@@ -171,22 +175,34 @@ public:
         double gravity_time = 0.0;
         double spring_time = 0.0;
 
-        // nodes
+        // 重力计算
         {
             double start = omp_get_wtime();
-            #pragma omp parallel for
-            for (int i = 0; i < nodes.size(); i++) {
-                nodes[i]->addForce(gravity * nodes[i]->mass);
+            if (enable_parallel) {
+                #pragma omp parallel for num_threads(num_threads)
+                for (int i = 0; i < nodes.size(); i++) {
+                    nodes[i]->addForce(gravity * nodes[i]->mass);
+                }
+            } else {
+                for (int i = 0; i < nodes.size(); i++) {
+                    nodes[i]->addForce(gravity * nodes[i]->mass);
+                }
             }
             gravity_time = omp_get_wtime() - start;
         }
 
-        // springs
+        // 弹簧力计算
         {
             double start = omp_get_wtime();
-            #pragma omp parallel for
-            for (int i = 0; i < springs.size(); i++) {
-                springs[i]->applyInternalForce(timeStep);
+            if (enable_parallel) {
+                #pragma omp parallel for num_threads(num_threads)
+                for (int i = 0; i < springs.size(); i++) {
+                    springs[i]->applyInternalForce(timeStep);
+                }
+            } else {
+                for (int i = 0; i < springs.size(); i++) {
+                    springs[i]->applyInternalForce(timeStep);
+                }
             }
             spring_time = omp_get_wtime() - start;
         }
@@ -197,16 +213,29 @@ public:
         #pragma omp critical
         {
             static int frame_count = 0;
-            frame_count++;
+            static double last_time = 0.0;
+            static double fps = 0.0;
             
-            std::cout << "Frame " << frame_count << " 性能数据:\n"
-                    << "total time: " << total_time * 1000 << " ms\n"
-                    << "node calc time: " << gravity_time * 1000 << " ms\n"
-                    << "spring calc time: " << spring_time * 1000 << " ms\n"
-                    << "threads: " << omp_get_max_threads() << "\n"
-                    << "total nodes: " << nodes.size() << "\n"
-                    << "total springs: " << springs.size() << "\n"
-                    << "------------------------\n";
+            frame_count++;
+            double current_time = omp_get_wtime();
+            
+            // 每秒更新一次 FPS
+            if (current_time - last_time >= 1.0) {
+                fps = frame_count / (current_time - last_time);
+                frame_count = 0;
+                last_time = current_time;
+                
+                // 只在FPS更新时输出性能数据
+                std::cout << "性能数据:\n"
+                        << "FPS: " << std::fixed << std::setprecision(2) << fps << "\n"
+                        << "total time: " << total_time * 1000 << " ms\n"
+                        << "node calc time: " << gravity_time * 1000 << " ms\n"
+                        << "spring calc time: " << spring_time * 1000 << " ms\n"
+                        << "threads: " << omp_get_max_threads() << "\n"
+                        << "total nodes: " << nodes.size() << "\n"
+                        << "total springs: " << springs.size() << "\n"
+                        << "------------------------\n";
+            }
         }
     }
 

@@ -15,6 +15,10 @@
 #include "Headers/Program.h"
 #include "Headers/Display.h"
 
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
+
 #define WIDTH 800
 #define HEIGHT 800
 
@@ -26,6 +30,25 @@ int running = 1;
 
 /** Functions **/
 void processInput(GLFWwindow *window);
+
+void renderGUI(Cloth& cloth) {
+    ImGui::Begin("Performance Control");
+
+    // 并行化开关
+    ImGui::Checkbox("Enable Parallel", &cloth.enable_parallel);
+
+    // 线程数滑动条
+    if (cloth.enable_parallel) {
+        int max_threads = omp_get_max_threads();
+        ImGui::SliderInt("Num Threads", &cloth.num_threads, 1, max_threads);
+
+        // 显示性能信息
+        ImGui::Text("Current Threads: %d", cloth.num_threads);
+        ImGui::Text("Max Available Threads: %d", max_threads);
+    }
+
+    ImGui::End();
+}
 
 /** Callback functions **/
 void framebuffer_size_callback(GLFWwindow *window, int width, int height);
@@ -109,6 +132,12 @@ int main(int argc, const char * argv[])
     glEnable(GL_DEPTH_TEST);
     glPointSize(3);
     
+    // 设置 ImGui
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init("#version 330");
+    
     /** Redering loop **/
     running = 1;
     while (!glfwWindowShouldClose(window))
@@ -142,10 +171,25 @@ int main(int argc, const char * argv[])
         
         /** -------------------------------- Simulation & Rendering -------------------------------- **/
         
+        // 渲染 ImGui
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
+        renderGUI(cloth);
+
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        
         glfwSwapBuffers(window);
         glfwPollEvents(); // Update the status of window
     }
 
+    // 清理 ImGui
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+    
     glfwTerminate();
     
     return 0;
@@ -254,3 +298,5 @@ void processInput(GLFWwindow *window)
         cloth.addForce(Vec3(windForceScale, 0.0, 0.0));
     }
 }
+
+
