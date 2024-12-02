@@ -34,9 +34,9 @@ public:
     Vec2 pin1;
     Vec2 pin2;
     
-    // 添加并行化控制变量
-    bool enable_parallel = true;  // 控制是否启用并行
-    int num_threads = 4;         // 控制线程数
+    // add parallel control variables
+    bool enable_parallel = true;  // control whether to enable parallel
+    int num_threads = 4;         // control thread number
     
 	Cloth(Vec3 pos, Vec2 size)
 	{
@@ -175,7 +175,7 @@ public:
         double gravity_time = 0.0;
         double spring_time = 0.0;
 
-        // 重力计算
+        // gravity calculation
         {
             double start = omp_get_wtime();
             if (enable_parallel) {
@@ -191,7 +191,7 @@ public:
             gravity_time = omp_get_wtime() - start;
         }
 
-        // 弹簧力计算
+        // spring force calculation
         {
             double start = omp_get_wtime();
             if (enable_parallel) {
@@ -219,19 +219,20 @@ public:
             frame_count++;
             double current_time = omp_get_wtime();
             
-            // 每秒更新一次 FPS
+            // update FPS per second
             if (current_time - last_time >= 1.0) {
                 fps = frame_count / (current_time - last_time);
                 frame_count = 0;
                 last_time = current_time;
                 
-                // 只在FPS更新时输出性能数据
-                std::cout << "性能数据:\n"
+                // only output performance data when FPS is updated
+                std::cout << "performance data:\n"
                         << "FPS: " << std::fixed << std::setprecision(2) << fps << "\n"
                         << "total time: " << total_time * 1000 << " ms\n"
                         << "node calc time: " << gravity_time * 1000 << " ms\n"
                         << "spring calc time: " << spring_time * 1000 << " ms\n"
-                        << "threads: " << omp_get_max_threads() << "\n"
+                        //<< "Current threads: " << omp_get_max_threads() << "\n"
+                        << "Current threads: " << num_threads << "\n"
                         << "total nodes: " << nodes.size() << "\n"
                         << "total springs: " << springs.size() << "\n"
                         << "------------------------\n";

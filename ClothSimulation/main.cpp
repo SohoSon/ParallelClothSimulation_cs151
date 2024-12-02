@@ -83,7 +83,7 @@ Vec3 gravity(0.0, -9.8 / cloth.iterationFreq, 0.0);
 
 int main(int argc, const char * argv[])
 {   
-    omp_set_num_threads(4);
+    //omp_set_num_threads(4);
     /** Prepare for rendering **/
     // Initialize GLFW
     glfwInit();
