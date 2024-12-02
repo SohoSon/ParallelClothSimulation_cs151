@@ -139,4 +139,10 @@ struct Vec3
         y = 0.0;
         z = 0.0;
 	}
+
+    void setInitVec(){
+        x = 0.0;
+        y = -9.8 / 100;
+        z = 0.0;
+	}
 };

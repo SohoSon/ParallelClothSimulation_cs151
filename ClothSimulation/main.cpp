@@ -23,7 +23,7 @@
 #define HEIGHT 800
 
 #define AIR_FRICTION 0.02
-#define TIME_STEP 0.01
+#define TIME_STEP 0.002
 
 /** Executing Flow **/
 int running = 1;

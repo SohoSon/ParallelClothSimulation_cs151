@@ -15,16 +15,20 @@ all: $(ASSIGN)
 $(ASSIGN): main.o glad.o $(IMGUI_OBJS)
 	$(CXX) $^ $(LDFLAGS) -o $@
 
-main.o: main.cpp
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+DEPS = $(IMGUI_SRCS:.cpp=.d) main.d glad.d
 
-glad.o: glad.c
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+-include $(DEPS)
 
 %.o: %.cpp
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -MMD -MP -c $< -o $@
+
+main.o: main.cpp
+	$(CXX) $(CXXFLAGS) -MMD -MP -c $< -o $@
+
+glad.o: glad.c
+	$(CXX) $(CXXFLAGS) -MMD -MP -c $< -o $@
 
 clean:
-	rm -rf $(ASSIGN) *.o imgui/*.o imgui/backends/*.o *~ *.dSYM
+	rm -rf $(ASSIGN) *.o imgui/*.o imgui/backends/*.o *~ *.dSYM *.d
 
 .PHONY: clean all

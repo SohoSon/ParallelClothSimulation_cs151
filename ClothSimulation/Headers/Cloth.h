@@ -9,9 +9,9 @@
 class Cloth
 {
 public:
-    const int nodesDensity = 4;
-    const int iterationFreq = 25;
-    const double structuralCoef = 1000.0;
+    const int nodesDensity = 20;
+    const int iterationFreq = 100;
+    const double structuralCoef = 4000.0;
     const double shearCoef = 50.0;
     const double bendingCoef = 400.0;
     
@@ -172,24 +172,9 @@ public:
     void computeForce(double timeStep, Vec3 gravity) {
         // init
         double total_start = omp_get_wtime();
-        double gravity_time = 0.0;
         double spring_time = 0.0;
 
-        // gravity calculation
-        {
-            double start = omp_get_wtime();
-            if (enable_parallel) {
-                #pragma omp parallel for num_threads(num_threads)
-                for (int i = 0; i < nodes.size(); i++) {
-                    nodes[i]->addForce(gravity * nodes[i]->mass);
-                }
-            } else {
-                for (int i = 0; i < nodes.size(); i++) {
-                    nodes[i]->addForce(gravity * nodes[i]->mass);
-                }
-            }
-            gravity_time = omp_get_wtime() - start;
-        }
+        
 
         // spring force calculation
         {
@@ -229,7 +214,6 @@ public:
                 std::cout << "performance data:\n"
                         << "FPS: " << std::fixed << std::setprecision(2) << fps << "\n"
                         << "total time: " << total_time * 1000 << " ms\n"
-                        << "node calc time: " << gravity_time * 1000 << " ms\n"
                         << "spring calc time: " << spring_time * 1000 << " ms\n"
                         //<< "Current threads: " << omp_get_max_threads() << "\n"
                         << "Current threads: " << num_threads << "\n"
@@ -242,11 +226,10 @@ public:
 
 	void integrate(double airFriction, double timeStep)
 	{
-        /** Node **/
-        for (int i = 0; i < nodes.size(); i++)
-        {
+        for (int i = 0; i < nodes.size(); i++) {
             nodes[i]->integrate(timeStep);
         }
+        
 	}
 	
     Vec3 getWorldPos(Node* n) { return clothPos + n->position; }

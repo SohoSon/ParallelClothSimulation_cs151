@@ -33,7 +33,7 @@ public:
         mass = 1.0;
         isFixed = false;
         velocity.setZeroVec();
-        force.setZeroVec();
+        force.setInitVec();
         acceleration.setZeroVec();
     }
 	Node(Vec3 pos)
@@ -42,7 +42,7 @@ public:
         isFixed = false;
         position = pos;
         velocity.setZeroVec();
-        force.setZeroVec();
+        force.setInitVec();
         acceleration.setZeroVec();
     }
 	~Node(void) {}
@@ -60,6 +60,6 @@ public:
             velocity += acceleration*timeStep;
             position += velocity*timeStep;
         }
-        force.setZeroVec();
+        force.setInitVec();
 	}
 };
