@@ -59,7 +59,7 @@ class Sphere
 {
 public:
     const int meridianNum = 24;
-    const int parallelNum = 250;
+    const int parallelNum = 50;
     
     int radius;
     

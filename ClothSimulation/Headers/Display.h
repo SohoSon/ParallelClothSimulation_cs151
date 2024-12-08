@@ -15,6 +15,12 @@ struct Camera
     glm::vec3 pos = glm::vec3(0.0f, 4.0f, 12.0f);
     glm::vec3 front = glm::vec3(0.0f, 0.0f, -2.0f);
     glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+    glm::vec3 target = glm::vec3(0.0f, 3.0f, -2.0f);  // 相机注视点
+
+    // 轨道相机参数
+    float distance = 12.0f;     // 相机到目标点的距离
+    float yaw = -90.0f;         // 水平旋转角度
+    float pitch = 0.0f;         // 垂直旋转角度
     
     glm::mat4 uniProjMatrix;
     glm::mat4 uniViewMatrix;
@@ -26,6 +32,57 @@ struct Camera
         uniProjMatrix = glm::perspective(glm::radians(45.0f), frustumRatio, 0.1f, 100.0f);
         /** View Matrix : The camera **/
         uniViewMatrix = glm::mat4(1.0f);
+        updateViewMatrix();
+    }
+
+    void updateViewMatrix()
+    {
+        uniViewMatrix = glm::lookAt(pos, target, up);
+    }
+
+    // 更新轨道相机位置
+    void updateOrbitCamera()
+    {
+        // 将角度转换为弧度
+        float yawRad = glm::radians(yaw);
+        float pitchRad = glm::radians(pitch);
+
+        // 计算相机位置
+        pos.x = target.x + distance * cos(pitchRad) * cos(yawRad);
+        pos.y = target.y + distance * sin(pitchRad);
+        pos.z = target.z + distance * cos(pitchRad) * sin(yawRad);
+
+        // 更新front向量
+        front = glm::normalize(target - pos);
+        
+        // 更新视图矩阵
+        updateViewMatrix();
+    }
+
+    // 平移目标点
+    void panTarget(float dx, float dy)
+    {
+        // 计算相机的右向量
+        glm::vec3 right = glm::normalize(glm::cross(front, up));
+        
+        // 在相机的平面上移动目标点
+        target += right * dx + up * dy;
+        updateOrbitCamera();
+    }
+
+    // 缩放(改变相机到目标点的距离)
+    void zoom(float factor)
+    {
+        distance = glm::clamp(distance * factor, 1.0f, 100.0f);
+        updateOrbitCamera();
+    }
+
+    // 轨道旋转
+    void orbit(float deltaYaw, float deltaPitch)
+    {
+        yaw += deltaYaw;
+        pitch = glm::clamp(pitch + deltaPitch, -89.0f, 89.0f);
+        updateOrbitCamera();
     }
 };
 Camera cam;
@@ -122,7 +179,7 @@ struct ClothRender // Texture & Lighting
         /** Load image and configure texture **/
         stbi_set_flip_vertically_on_load(true);
         int texW, texH, colorChannels; // After loading the image, stb_image will fill them
-        unsigned char *data = stbi_load("Textures/tex1.jpg", &texW, &texH, &colorChannels, 0);
+        unsigned char *data = stbi_load("Textures/openmp.jpg", &texW, &texH, &colorChannels, 0);
         if (data) {
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, texW, texH, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
             // Automatically generate all the required mipmaps for the currently bound texture.
@@ -200,7 +257,6 @@ struct ClothRender // Texture & Lighting
         glBindTexture(GL_TEXTURE_2D, texID);
         
         /** View Matrix : The camera **/
-        cam.uniViewMatrix = glm::lookAt(cam.pos, cam.pos + cam.front, cam.up);
         glUniformMatrix4fv(glGetUniformLocation(programID, "uniViewMatrix"), 1, GL_FALSE, &cam.uniViewMatrix[0][0]);
         
         glEnable(GL_BLEND);
@@ -358,7 +414,6 @@ struct SpringRender
         glBufferSubData(GL_ARRAY_BUFFER, 0, springCount*2*sizeof(glm::vec3), vboNor);
         
         /** View Matrix : The camera **/
-        cam.uniViewMatrix = glm::lookAt(cam.pos, cam.pos + cam.front, cam.up);
         glUniformMatrix4fv(glGetUniformLocation(programID, "uniViewMatrix"), 1, GL_FALSE, &cam.uniViewMatrix[0][0]);
         
         glEnable(GL_BLEND);
@@ -509,7 +564,6 @@ struct RigidRender // Single color & Lighting
         glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount*sizeof(glm::vec3), vboNor);
         
         /** View Matrix : The camera **/
-        cam.uniViewMatrix = glm::lookAt(cam.pos, cam.pos + cam.front, cam.up);
         glUniformMatrix4fv(glGetUniformLocation(programID, "uniViewMatrix"), 1, GL_FALSE, &cam.uniViewMatrix[0][0]);
         
         glEnable(GL_BLEND);

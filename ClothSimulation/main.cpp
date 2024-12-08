@@ -74,12 +74,21 @@ Ground ground(groundPos, groundSize, groundColor);
 // Ball
 Vec3 ballPos(0, 3, -2);
 int ballRadius = 1;
-glm::vec4 ballColor(0.6f, 0.5f, 0.8f, 1.0f);
+glm::vec4 ballColor(1.0f, 1.0f, 1.0f, 1.0f);
 Ball ball(ballPos, ballRadius, ballColor);
 // Window and world
 GLFWwindow *window;
-Vec3 bgColor = Vec3(50.0/255, 50.0/255, 60.0/255);
+Vec3 bgColor = Vec3(0.0f, 0.0f, 0.0f);
 Vec3 gravity(0.0, -9.8 / cloth.iterationFreq, 0.0);
+
+struct MouseControl {
+    bool leftPressed = false;
+    bool rightPressed = false;
+    double lastX = 400;  // 窗口中心
+    double lastY = 400;
+    float yaw = -90.0f;   // 水平角度
+    float pitch = 0.0f;   // 垂直角度
+} mouseControl;
 
 int main(int argc, const char * argv[])
 {   
@@ -167,7 +176,7 @@ int main(int argc, const char * argv[])
             clothRender.flush();
         }
         ballRender.flush();
-        groundRender.flush();
+        // groundRender.flush();
         
         /** -------------------------------- Simulation & Rendering -------------------------------- **/
         
@@ -202,30 +211,47 @@ void framebuffer_size_callback(GLFWwindow *window, int width, int height)
 
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
-    if(button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS && running) // Start wind
-    {
-        windBlowing = 1;
-        // Set start point of wind direction
-        windStartPos.setZeroVec();
-        glfwGetCursorPos(window, &windStartPos.x, &windStartPos.y);
-        windStartPos.y = -windStartPos.y; // Reverse y since the screen local in the fourth quadrant
+    if(button == GLFW_MOUSE_BUTTON_LEFT) {
+        if(action == GLFW_PRESS) {
+            mouseControl.leftPressed = true;
+            glfwGetCursorPos(window, &mouseControl.lastX, &mouseControl.lastY);
+        } else if(action == GLFW_RELEASE) {
+            mouseControl.leftPressed = false;
+        }
     }
-    if(button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE && running) // End wind
-    {
-        windBlowing = 0;
-        windDir.setZeroVec();
+    if(button == GLFW_MOUSE_BUTTON_RIGHT) {
+        if(action == GLFW_PRESS) {
+            mouseControl.rightPressed = true;
+            glfwGetCursorPos(window, &mouseControl.lastX, &mouseControl.lastY);
+        } else if(action == GLFW_RELEASE) {
+            mouseControl.rightPressed = false;
+        }
     }
 }
 
 void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos)
 {
-    /** Wind **/
-    if (windBlowing && running) {
-        windDir = Vec3(xpos, -ypos, 0) - windStartPos;
-        windDir.normalize();
-        wind = windDir * windForceScale;
-        cloth.addForce(wind);
+    float xoffset = xpos - mouseControl.lastX;
+    float yoffset = mouseControl.lastY - ypos;
+    mouseControl.lastX = xpos;
+    mouseControl.lastY = ypos;
+
+    float sensitivity = 0.1f;
+    xoffset *= sensitivity;
+    yoffset *= sensitivity;
+
+    if(mouseControl.leftPressed) {
+        // 平移目标点
+        cam.panTarget(-xoffset * cam.speed, yoffset * cam.speed);
     }
+    
+    if(mouseControl.rightPressed) {
+        // 轨道旋转
+        cam.orbit(xoffset, yoffset);
+    }
+
+    // 鼠标滚轮可以用于缩放
+    // cam.zoom(factor);  // factor > 1 放大，< 1 缩小
 }
 
 void processInput(GLFWwindow *window)

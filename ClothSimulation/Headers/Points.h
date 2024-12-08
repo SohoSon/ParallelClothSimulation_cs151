@@ -57,7 +57,12 @@ public:
 
 	void addForce(Vec3 f)
 	{
-        force += f;
+        #pragma omp atomic
+        force.x += f.x;
+        #pragma omp atomic
+        force.y += f.y;
+        #pragma omp atomic
+        force.z += f.z;
 	}
 
 	void integrate(double timeStep) // Only non-fixed nodes take integration

@@ -9,7 +9,7 @@
 class Cloth
 {
 public:
-    const int nodesDensity = 20;
+    const int nodesDensity = 15;
     const int iterationFreq = 100;
     const double structuralCoef = 4000.0;
     const double shearCoef = 50.0;
@@ -189,7 +189,9 @@ public:
                  
                     // omp_set_lock(&node_locks[springs[i]->node1]);
                     // omp_set_lock(&node_locks[springs[i]->node2]);
+                    #pragma omp atomic
                     springs[i]->node1->TempSpringCount--;
+                    #pragma omp atomic
                     springs[i]->node2->TempSpringCount--;
                 //     omp_unset_lock(&node_locks[springs[i]->node1]);
                 // omp_unset_lock(&node_locks[springs[i]->node2]);
@@ -197,15 +199,15 @@ public:
                         springs[i]->node1->TempSpringCount = springs[i]->node1->SpringCount;
                         springs[i]->node1->integrate(timeStep);
                         /** Ground collision **/
-                        if (getWorldPos(springs[i]->node1).y < ground->position.y) {
-                            springs[i]->node1->position.y = ground->position.y - clothPos.y + 0.01;
-                            springs[i]->node1->velocity = springs[i]->node1->velocity * ground->friction;
-                        }
+                        // if (getWorldPos(springs[i]->node1).y < ground->position.y) {
+                        //     springs[i]->node1->position.y = ground->position.y - clothPos.y + 0.01;
+                        //     springs[i]->node1->velocity = springs[i]->node1->velocity * ground->friction;
+                        // }
                         
                         /** Ball collision **/
                         Vec3 distVec = getWorldPos(springs[i]->node1) - ball->center;
                         double distLen = distVec.length();
-                        double safeDist = ball->radius*1.05;
+                        double safeDist = ball->radius*1.1;
                         if (distLen < safeDist) {
                             distVec.normalize();
                             setWorldPos(springs[i]->node1, distVec*safeDist+ball->center);
@@ -216,15 +218,15 @@ public:
                         springs[i]->node2->integrate(timeStep);
                         springs[i]->node2->TempSpringCount = springs[i]->node2->SpringCount;
                         /** Ground collision **/
-                        if (getWorldPos(springs[i]->node2).y < ground->position.y) {
-                            springs[i]->node2->position.y = ground->position.y - clothPos.y + 0.01;
-                            springs[i]->node2->velocity = springs[i]->node2->velocity * ground->friction;
-                        }
+                        // if (getWorldPos(springs[i]->node2).y < ground->position.y) {
+                        //     springs[i]->node2->position.y = ground->position.y - clothPos.y + 0.01;
+                        //     springs[i]->node2->velocity = springs[i]->node2->velocity * ground->friction;
+                        // }
                         
                         /** Ball collision **/
                         Vec3 distVec = getWorldPos(springs[i]->node2) - ball->center;
                         double distLen = distVec.length();
-                        double safeDist = ball->radius*1.05;
+                        double safeDist = ball->radius*1.1;
                         if (distLen < safeDist) {
                             distVec.normalize();
                             setWorldPos(springs[i]->node2, distVec*safeDist+ball->center);
@@ -243,15 +245,15 @@ public:
                         springs[i]->node1->integrate(timeStep);
                         springs[i]->node1->TempSpringCount = springs[i]->node1->SpringCount;
                         /** Ground collision **/
-                        if (getWorldPos(springs[i]->node1).y < ground->position.y) {
-                            springs[i]->node1->position.y = ground->position.y - clothPos.y + 0.01;
-                            springs[i]->node1->velocity = springs[i]->node1->velocity * ground->friction;
-                        }
+                        // if (getWorldPos(springs[i]->node1).y < ground->position.y) {
+                        //     springs[i]->node1->position.y = ground->position.y - clothPos.y + 0.01;
+                        //     springs[i]->node1->velocity = springs[i]->node1->velocity * ground->friction;
+                        // }
                         
                         /** Ball collision **/
                         Vec3 distVec = getWorldPos(springs[i]->node1) - ball->center;
                         double distLen = distVec.length();
-                        double safeDist = ball->radius*1.05;
+                        double safeDist = ball->radius*1.1;
                         if (distLen < safeDist) {
                             distVec.normalize();
                             setWorldPos(springs[i]->node1, distVec*safeDist+ball->center);
@@ -270,7 +272,7 @@ public:
                         /** Ball collision **/
                         Vec3 distVec = getWorldPos(springs[i]->node2) - ball->center;
                         double distLen = distVec.length();
-                        double safeDist = ball->radius*1.05;
+                        double safeDist = ball->radius*1.1;
                         if (distLen < safeDist) {
                             distVec.normalize();
                             setWorldPos(springs[i]->node2, distVec*safeDist+ball->center);
@@ -330,10 +332,10 @@ public:
         for (int i = 0; i < nodes.size(); i++)
         {
             /** Ground collision **/
-            if (getWorldPos(nodes[i]).y < ground->position.y) {
-                nodes[i]->position.y = ground->position.y - clothPos.y + 0.01;
-                nodes[i]->velocity = nodes[i]->velocity * ground->friction;
-            }
+            // if (getWorldPos(nodes[i]).y < ground->position.y) {
+            //     nodes[i]->position.y = ground->position.y - clothPos.y + 0.01;
+            //     nodes[i]->velocity = nodes[i]->velocity * ground->friction;
+            // }
             
             /** Ball collision **/
             Vec3 distVec = getWorldPos(nodes[i]) - ball->center;
