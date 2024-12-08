@@ -34,15 +34,15 @@ void processInput(GLFWwindow *window);
 void renderGUI(Cloth& cloth) {
     ImGui::Begin("Performance Control");
 
-    // 并行化开关
+    // Parallelization switch
     ImGui::Checkbox("Enable Parallel", &cloth.enable_parallel);
 
-    // 线程数滑动条
+    // Thread count slider
     if (cloth.enable_parallel) {
         int max_threads = omp_get_max_threads();
         ImGui::SliderInt("Num Threads", &cloth.num_threads, 1, max_threads);
 
-        // 显示性能信息
+        // Display performance info
         ImGui::Text("Current Threads: %d", cloth.num_threads);
         ImGui::Text("Max Available Threads: %d", max_threads);
     }
@@ -54,6 +54,7 @@ void renderGUI(Cloth& cloth) {
 void framebuffer_size_callback(GLFWwindow *window, int width, int height);
 void mouse_button_callback(GLFWwindow *window, int button, int action, int mods);
 void cursor_pos_callback(GLFWwindow *window, double xpos, double ypos);
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 
 /** Global **/
 // Wind
@@ -84,10 +85,10 @@ Vec3 gravity(0.0, -9.8 / cloth.iterationFreq, 0.0);
 struct MouseControl {
     bool leftPressed = false;
     bool rightPressed = false;
-    double lastX = 400;  // 窗口中心
+    double lastX = 400;  // Window center
     double lastY = 400;
-    float yaw = -90.0f;   // 水平角度
-    float pitch = 0.0f;   // 垂直角度
+    float yaw = -90.0f;   // Horizontal angle
+    float pitch = 0.0f;   // Vertical angle
 } mouseControl;
 
 int main(int argc, const char * argv[])
@@ -128,6 +129,7 @@ int main(int argc, const char * argv[])
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetMouseButtonCallback(window, mouse_button_callback);
     glfwSetCursorPosCallback(window, cursor_pos_callback);
+    glfwSetScrollCallback(window, scroll_callback);
     
     /** Renderers **/
     ClothRender clothRender(&cloth);
@@ -241,22 +243,25 @@ void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos)
     yoffset *= sensitivity;
 
     if(mouseControl.leftPressed) {
-        // 平移目标点
+        // Pan target point
         cam.panTarget(-xoffset * cam.speed, yoffset * cam.speed);
     }
     
     if(mouseControl.rightPressed) {
-        // 轨道旋转
+        // Orbit rotation
         cam.orbit(xoffset, yoffset);
     }
+}
 
-    // 鼠标滚轮可以用于缩放
-    // cam.zoom(factor);  // factor > 1 放大，< 1 缩小
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
+{
+    float zoomFactor = (yoffset > 0) ? 0.9f : 1.1f;  // Zoom in when scrolling up, out when scrolling down
+    cam.zoom(zoomFactor);
 }
 
 void processInput(GLFWwindow *window)
 {
-    /** Keyboard control **/ // If key did not get pressed it will return GLFW_RELEASE
+    /** Keyboard control **/ 
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
         glfwSetWindowShouldClose(window, true);
     }

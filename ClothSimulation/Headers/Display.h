@@ -15,21 +15,38 @@ struct Camera
     glm::vec3 pos = glm::vec3(0.0f, 4.0f, 12.0f);
     glm::vec3 front = glm::vec3(0.0f, 0.0f, -2.0f);
     glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
-    glm::vec3 target = glm::vec3(0.0f, 3.0f, -2.0f);  // 相机注视点
+    glm::vec3 target = glm::vec3(0.0f, 3.0f, -2.0f);  // Camera look-at point
 
-    // 轨道相机参数
-    float distance = 12.0f;     // 相机到目标点的距离
-    float yaw = -90.0f;         // 水平旋转角度
-    float pitch = 0.0f;         // 垂直旋转角度
+    // Orbit camera parameters
+    float distance = 12.0f;     // Distance from camera to target
+    float yaw = -90.0f;         // Horizontal rotation angle
+    float pitch = 0.0f;         // Vertical rotation angle
     
     glm::mat4 uniProjMatrix;
     glm::mat4 uniViewMatrix;
+    
+    bool firstOrbit = true;  // Add this flag
     
     Camera()
     {
         /** Projection matrix : The frustum that camera observes **/
         uniProjMatrix = glm::mat4(1.0f);
         uniProjMatrix = glm::perspective(glm::radians(45.0f), frustumRatio, 0.1f, 100.0f);
+        
+        /** Initialize camera position and parameters **/
+        // Sync initial camera state with orbit parameters
+        glm::vec3 toTarget = target - pos;
+        distance = glm::length(toTarget);
+        
+        // Calculate pitch (vertical angle)
+        float horizontalDist = sqrt(toTarget.x * toTarget.x + toTarget.z * toTarget.z);
+        pitch = glm::degrees(atan2(toTarget.y, horizontalDist));
+        
+        // Calculate yaw (horizontal angle) considering all quadrants
+        yaw = glm::degrees(atan2(-toTarget.z, -toTarget.x));
+        
+        front = glm::normalize(toTarget);
+        
         /** View Matrix : The camera **/
         uniViewMatrix = glm::mat4(1.0f);
         updateViewMatrix();
@@ -40,49 +57,71 @@ struct Camera
         uniViewMatrix = glm::lookAt(pos, target, up);
     }
 
-    // 更新轨道相机位置
+    // Update orbit camera position
     void updateOrbitCamera()
     {
-        // 将角度转换为弧度
+        // Convert angles to radians
         float yawRad = glm::radians(yaw);
         float pitchRad = glm::radians(pitch);
 
-        // 计算相机位置
+        // Calculate camera position
         pos.x = target.x + distance * cos(pitchRad) * cos(yawRad);
         pos.y = target.y + distance * sin(pitchRad);
         pos.z = target.z + distance * cos(pitchRad) * sin(yawRad);
 
-        // 更新front向量
+        // Update front vector
         front = glm::normalize(target - pos);
         
-        // 更新视图矩阵
+        // Update view matrix
         updateViewMatrix();
     }
 
-    // 平移目标点
+    // Pan the target point
     void panTarget(float dx, float dy)
     {
-        // 计算相机的右向量
+        // Calculate camera's right vector
         glm::vec3 right = glm::normalize(glm::cross(front, up));
         
-        // 在相机的平面上移动目标点
-        target += right * dx + up * dy;
-        updateOrbitCamera();
+        // Move target point in camera's plane
+        glm::vec3 offset = right * dx + up * dy;
+        target += offset;
+        pos += offset;
+        
+        // Only update view matrix, don't recalculate orbit position
+        updateViewMatrix();
     }
 
-    // 缩放(改变相机到目标点的距离)
+    // Zoom (change distance from camera to target)
     void zoom(float factor)
     {
         distance = glm::clamp(distance * factor, 1.0f, 100.0f);
         updateOrbitCamera();
     }
 
-    // 轨道旋转
+    // Orbit rotation
     void orbit(float deltaYaw, float deltaPitch)
     {
+        if (firstOrbit) {
+            // On first orbit, sync camera state
+            syncOrbitCamera();
+            firstOrbit = false;
+        }
+        
         yaw += deltaYaw;
         pitch = glm::clamp(pitch + deltaPitch, -89.0f, 89.0f);
         updateOrbitCamera();
+    }
+
+    void syncOrbitCamera()
+    {
+        glm::vec3 toTarget = target - pos;
+        distance = glm::length(toTarget);
+        
+        float horizontalDist = sqrt(toTarget.x * toTarget.x + toTarget.z * toTarget.z);
+        pitch = glm::degrees(atan2(toTarget.y, horizontalDist));
+        
+        yaw = glm::degrees(atan2(-toTarget.z, -toTarget.x));
+        front = glm::normalize(toTarget);
     }
 };
 Camera cam;
