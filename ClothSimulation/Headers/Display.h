@@ -32,6 +32,7 @@ struct Camera
         /** Projection matrix : The frustum that camera observes **/
         uniProjMatrix = glm::mat4(1.0f);
         uniProjMatrix = glm::perspective(glm::radians(45.0f), frustumRatio, 0.1f, 100.0f);
+
         
         /** Initialize camera position and parameters **/
         // Sync initial camera state with orbit parameters
@@ -52,9 +53,37 @@ struct Camera
         updateViewMatrix();
     }
 
+    glm::vec3 screenToWorldray(double xpos, double ypos, int screenWidth, int screenHeight) {
+        // 将窗口坐标转换为标准化设备坐标
+        
+        //glm::vec3 screenPos = glm::vec3(xpos, screenHeight - ypos, 1.0f); // 注意 y 轴的翻转
+        glm::vec3 screenPosNear = glm::vec3(xpos, screenHeight - ypos, 0.0f); // 近平面
+        glm::vec3 screenPosFar = glm::vec3(xpos, screenHeight - ypos, 1.0f); // 远平面
+        // 获取视图矩阵和投影矩阵
+        glm::mat4 viewMatrix = uniViewMatrix;
+        glm::mat4 projMatrix = uniProjMatrix;
+
+        // 获取视口
+        glm::vec4 viewport = glm::vec4(0.0f, 0.0f, screenWidth, screenHeight);
+
+        
+        // 使用 glm::unProject 将屏幕坐标转换为世界坐标
+        glm::vec3 worldPosNear = glm::unProject(screenPosNear, viewMatrix, projMatrix, viewport);
+        glm::vec3 worldPosFar = glm::unProject(screenPosFar, viewMatrix, projMatrix, viewport);
+        // 计算射线方向
+        glm::vec3 rayDirection = glm::normalize(worldPosFar - worldPosNear);
+
+        return glm::vec3(rayDirection.x, rayDirection.y, rayDirection.z);
+    }
+    
     void updateViewMatrix()
     {
         uniViewMatrix = glm::lookAt(pos, target, up);
+        // glm::mat4 CameraMatrix = glm::lookAt(
+        //     cameraPosition, // the position of your camera, in world space
+        //     cameraTarget,   // where you want to look at, in world space
+        //     upVector        // probably glm::vec3(0,1,0), but (0,-1,0) would make you looking upside-down, which can be great too
+        // );
     }
 
     // Update orbit camera position
@@ -306,9 +335,10 @@ struct ClothRender // Texture & Lighting
             case Cloth::DRAW_NODES:
                 glDrawArrays(GL_POINTS, 0, nodeCount);
                 break;
-            case Cloth::DRAW_LINES:
-                glDrawArrays(GL_LINES, 0, nodeCount);
-                break;
+            // case Cloth::DRAW_LINES:
+            //     glDrawArrays(GL_LINE, 0, nodeCount);
+            //     break; 
+            // won't be used
             default:
                 glDrawArrays(GL_TRIANGLES, 0, nodeCount);
                 break;
@@ -469,6 +499,7 @@ struct SpringRender
     }
 };
 
+//helper struct to render cloth springs
 struct ClothSpringRender
 {
     Cloth *cloth;
@@ -478,7 +509,7 @@ struct ClothSpringRender
     ClothSpringRender(Cloth* c)
     {
         cloth = c;
-        defaultColor = glm::vec4(1.0, 1.0, 1.0, 1.0);
+        defaultColor = glm::vec4(1.0, 1.0, 1.0, 1.0); //spring color is white
         render.init(cloth->springs, defaultColor, glm::vec3(cloth->clothPos.x, cloth->clothPos.y, cloth->clothPos.z));
     }
     

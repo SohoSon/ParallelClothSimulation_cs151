@@ -9,8 +9,8 @@
 class Cloth
 {
 public:
-    const int nodesDensity = 1;
-    const int iterationFreq = 50;
+    const int nodesDensity = 4;
+    const int iterationFreq = 100;
     const double structuralCoef = 4000.0;
     const double shearCoef = 50.0;
     const double bendingCoef = 400.0;
@@ -59,6 +59,7 @@ public:
  
 public:
     Node* getNode(int x, int y) { return nodes[y*nodesPerRow+x]; }
+    std::vector<Node*>& getNodes() { return nodes; }
     Vec3 computeFaceNormal(Node* n1, Node* n2, Node* n3)
     {
         return Vec3::cross(n2->position - n1->position, n3->position - n1->position);
@@ -186,17 +187,17 @@ public:
 		}
 	}
 
-void simulation(double timeStep, Vec3 gravity, Ground* ground, Ball* ball) {
+void node_based_simulation(double timeStep, Vec3 gravity, Ground* ground, Ball* ball) {
     double total_start = omp_get_wtime();
     double simulation_time = 0.0;
 
     if (enable_parallel) {
-        #pragma omp parallel for num_threads(num_threads)
+        //#pragma omp parallel for num_threads(num_threads)
         for (int i = 0; i < nodes.size(); i++) {
             Node* node = nodes[i];
             
             // Reset forces
-            //node->force = Vec3(0.0, 0.0, 0.0);
+            node->force = Vec3(0.0, -9.8/100, 0.0);
 
             // Calculate spring forces
             //std::cout << "connectedSprings: " << node->connectedSprings.size() << std::endl;
@@ -206,10 +207,10 @@ void simulation(double timeStep, Vec3 gravity, Ground* ground, Ball* ball) {
                 node->addForce(force);
             }
 
-            std::cout << "Node " << i << ": Position = " << node->position << ", Force = " << node->force << std::endl;
+            std::cout << "Node " << i << ": Position = " << node->position << ", TOTAL Force = " << node->force << std::endl;
             // Integrate node
-            node->integrate(timeStep);
-
+            //node->integrate(timeStep);
+            node->force = Vec3(0.0, 0.0, 0.0);
             // // Debug output
             //#pragma omp critical
             //{
@@ -303,7 +304,7 @@ void simulation(double timeStep, Vec3 gravity, Ground* ground, Ball* ball) {
 }
 
 //simulation
-void spring_based_simulation(double timeStep, Vec3 gravity, Ground* ground, Ball* ball) {
+void simulation(double timeStep, Vec3 gravity, Ground* ground, Ball* ball) {
         // init
         double total_start = omp_get_wtime();
         double simulation_time = 0.0;
@@ -329,7 +330,7 @@ void spring_based_simulation(double timeStep, Vec3 gravity, Ground* ground, Ball
                     if (springs[i]->node1->TempSpringCount <= 0) {
                         springs[i]->node1->TempSpringCount = springs[i]->node1->SpringCount;
                         springs[i]->node1->integrate(timeStep);
-                        std::cout << "Node " << i << ": Position = " << springs[i]->node1->position << ", Velocity = " << springs[i]->node1->velocity << std::endl;
+                        //std::cout << "Node " << i << ": Position = " << springs[i]->node1->position << ", Velocity = " << springs[i]->node1->velocity << std::endl;
                         /** Ground collision **/
                         // if (getWorldPos(springs[i]->node1).y < ground->position.y) {
                         //     springs[i]->node1->position.y = ground->position.y - clothPos.y + 0.01;
@@ -458,7 +459,19 @@ void spring_based_simulation(double timeStep, Vec3 gravity, Ground* ground, Ball
 	// }
 	
     Vec3 getWorldPos(Node* n) { return clothPos + n->position; }
+
     void setWorldPos(Node* n, Vec3 pos) { n->position = pos - clothPos; }
+
+    void setworldposandpin(Node* n, Vec3 pos)
+    {
+        setWorldPos(n, pos);
+        n->isFixed = true;
+    }
+
+    void unpin(Node* n)
+    {
+        n->isFixed = false;
+    }
     
 	void collisionResponse(Ground* ground, Ball* ball)
 	{

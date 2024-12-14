@@ -25,6 +25,9 @@
 #define AIR_FRICTION 0.02
 #define TIME_STEP 0.002
 
+// 添加一个全局变量来表示拖拽模式
+/** Drag feature **/
+bool dragMode = false;
 /** Executing Flow **/
 int running = 1;
 
@@ -46,6 +49,9 @@ void renderGUI(Cloth& cloth) {
         ImGui::Text("Current Threads: %d", cloth.num_threads);
         ImGui::Text("Max Available Threads: %d", max_threads);
     }
+
+    // 添加拖拽模式切换
+    ImGui::Checkbox("Enable Drag Mode", &dragMode);
 
     ImGui::End();
 }
@@ -93,6 +99,9 @@ struct MouseControl {
     float yaw = -90.0f;   // Horizontal angle
     float pitch = 0.0f;   // Vertical angle
 } mouseControl;
+
+// 添加一个全局变量来存储被拖拽的节点
+Node* draggedNode = nullptr;
 
 int main(int argc, const char * argv[])
 {   
@@ -174,9 +183,13 @@ int main(int argc, const char * argv[])
             cloth.computeNormal();
         }
         
+
+        // Note that the clothRender.flush() is called after the clothSpringRender.flush()
+        // This is because the clothRender.flush() is the final step of rendering, and it should be called last
         /** Display **/
         if (cloth.drawMode == Cloth::DRAW_LINES) {
             clothSpringRender.flush();
+            //clothRender.flush();
         } else {
             clothRender.flush();
         }
@@ -219,9 +232,30 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
     if(button == GLFW_MOUSE_BUTTON_LEFT) {
         if(action == GLFW_PRESS) {
             mouseControl.leftPressed = true;
-            glfwGetCursorPos(window, &mouseControl.lastX, &mouseControl.lastY);
-        } else if(action == GLFW_RELEASE) {
+            glfwGetCursorPos(window, &mouseControl.lastX, &mouseControl.lastY); // Get the current cursor pos of the left pressed
+            double xpos, ypos;
+            glfwGetCursorPos(window, &xpos, &ypos);
+            glm::vec3 rayDirection = cam.screenToWorldray(xpos, ypos, WIDTH, HEIGHT);
+
+            // 找到最近的节点
+            float minDistance = std::numeric_limits<float>::max();
+            draggedNode = nullptr;
+
+            for (Node* node : cloth.getNodes()) {
+                Vec3 nodePos = cloth.getWorldPos(node);
+                glm::vec3 nodePosGLM = glm::vec3(nodePos.x, nodePos.y, nodePos.z);
+                float distance = glm::length(glm::cross(rayDirection, nodePosGLM - cam.pos)) / glm::length(rayDirection);
+
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    draggedNode = node;
+                }
+            }
+        } else if (action == GLFW_RELEASE) {
+            // 释放鼠标时，清除拖拽的节点
             mouseControl.leftPressed = false;
+            cloth.unpin(draggedNode);
+            draggedNode = nullptr;
         }
     }
     if(button == GLFW_MOUSE_BUTTON_RIGHT) {
@@ -245,14 +279,26 @@ void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos)
     xoffset *= sensitivity;
     yoffset *= sensitivity;
 
-    if(mouseControl.leftPressed) {
-        // Pan target point
-        cam.panTarget(-xoffset * cam.speed, yoffset * cam.speed);
-    }
-    
-    if(mouseControl.rightPressed) {
-        // Orbit rotation
-        cam.orbit(xoffset, yoffset);
+    if (dragMode) {
+        if (mouseControl.leftPressed && draggedNode) {
+            // 更新被拖拽节点的位置
+            cout << "closestNode: " << draggedNode->position.x << ", " << draggedNode->position.y << ", " << draggedNode->position.z << endl;
+            glm::vec3 rayDirection = cam.screenToWorldray(xpos, ypos, WIDTH, HEIGHT);
+            glm::vec3 newPos = cam.pos + rayDirection * glm::length(glm::vec3(draggedNode->position.x, draggedNode->position.y, draggedNode->position.z) - cam.pos);
+            Vec3 newPosVec3 = Vec3(newPos.x, newPos.y, newPos.z);
+            cloth.setworldposandpin(draggedNode, newPosVec3);
+        }
+    } else {
+        // 否则，进行视角拖拽
+        if (mouseControl.leftPressed) {
+            // Pan target point
+            cam.panTarget(-xoffset * cam.speed, yoffset * cam.speed);
+        }
+        
+        if (mouseControl.rightPressed) {
+            // Orbit rotation
+            cam.orbit(xoffset, yoffset);
+        }
     }
 }
 
