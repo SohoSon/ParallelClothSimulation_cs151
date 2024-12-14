@@ -1,6 +1,10 @@
 #pragma once
 
 #include "Vectors.h"
+//#include "Spring.h"
+#include <vector>
+
+class Spring;
 
 struct Vertex
 {
@@ -30,7 +34,8 @@ public:
     int     SpringCount;
     // std::atomic<int>     TempSpringCount;
     int     TempSpringCount;
-
+    //for node-based parallel
+    std::vector<Spring*> connectedSprings; // 新增：存储与节点相连的弹簧
 
 public:
     Node(void) {
@@ -69,10 +74,15 @@ public:
 	{
 		if (!isFixed) // Verlet integration
 		{
-            acceleration = force/mass;
-            velocity += acceleration*timeStep;
-            position += velocity*timeStep;
+            acceleration = force/mass; // 计算加速度
+            velocity += acceleration*timeStep; // 更新速度
+            position += velocity*timeStep; // 更新位置
         }
         force.setInitVec();
 	}
+    //for node-based parallel
+    void addSpring(Spring* spring) {
+        //std::cout << "Adding spring to node: " << position << std::endl;
+        connectedSprings.push_back(spring);
+    }
 };

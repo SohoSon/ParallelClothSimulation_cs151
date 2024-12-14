@@ -1,6 +1,7 @@
 #pragma once
 
 #include <math.h>
+#include <iostream>
 
 struct Vec2
 {
@@ -145,4 +146,10 @@ struct Vec3
         y = -9.8 / 100;
         z = 0.0;
 	}
+
+    // 重载 << 运算符
+    friend std::ostream& operator<<(std::ostream& os, const Vec3& vec) {
+        os << "(" << vec.x << ", " << vec.y << ", " << vec.z << ")";
+        return os;
+    }
 };

@@ -71,15 +71,18 @@ Cloth cloth(clothPos, clothSize);
 Vec3 groundPos(-5, 1.5, 0);
 Vec2 groundSize(10, 10);
 glm::vec4 groundColor(0.8, 0.8, 0.8, 1.0);
+
 Ground ground(groundPos, groundSize, groundColor);
 // Ball
 Vec3 ballPos(0, 3, -2);
 int ballRadius = 1;
-glm::vec4 ballColor(1.0f, 1.0f, 1.0f, 1.0f);
+glm::vec4 ballColor(0.6f, 0.5f, 0.8f, 1.0f);
+//glm::vec4 ballColor(1.0f, 1.0f, 1.0f, 1.0f);
 Ball ball(ballPos, ballRadius, ballColor);
 // Window and world
 GLFWwindow *window;
-Vec3 bgColor = Vec3(0.0f, 0.0f, 0.0f);
+Vec3 bgColor = Vec3(50.0/255, 50.0/255, 60.0/255);
+//Vec3 bgColor = Vec3(0.0f, 0.0f, 0.0f);
 Vec3 gravity(0.0, -9.8 / cloth.iterationFreq, 0.0);
 
 struct MouseControl {
@@ -178,7 +181,7 @@ int main(int argc, const char * argv[])
             clothRender.flush();
         }
         ballRender.flush();
-        // groundRender.flush();
+        groundRender.flush();
         
         /** -------------------------------- Simulation & Rendering -------------------------------- **/
         

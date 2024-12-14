@@ -9,8 +9,8 @@
 class Cloth
 {
 public:
-    const int nodesDensity = 15;
-    const int iterationFreq = 100;
+    const int nodesDensity = 1;
+    const int iterationFreq = 50;
     const double structuralCoef = 4000.0;
     const double shearCoef = 50.0;
     const double bendingCoef = 400.0;
@@ -107,16 +107,30 @@ public:
         for (int i = 0; i < nodesPerRow; i ++) {
             for (int j = 0; j < nodesPerCol; j ++) {
                 /** Structural **/
-                if (i < nodesPerRow-1) springs.push_back(new Spring(getNode(i, j), getNode(i+1, j), structuralCoef));
-                if (j < nodesPerCol-1) springs.push_back(new Spring(getNode(i, j), getNode(i, j+1), structuralCoef));
+                if (i < nodesPerRow-1) {
+                    Spring* spring = new Spring(getNode(i, j), getNode(i+1, j), structuralCoef);
+                    springs.push_back(spring);
+                }
+                if (j < nodesPerCol-1) {
+                    Spring* spring = new Spring(getNode(i, j), getNode(i, j+1), structuralCoef);
+                    springs.push_back(spring);
+                }
                 /** Shear **/
                 if (i < nodesPerRow-1 && j < nodesPerCol-1) {
-                    springs.push_back(new Spring(getNode(i, j), getNode(i+1, j+1), shearCoef));
-                    springs.push_back(new Spring(getNode(i+1, j), getNode(i, j+1), shearCoef));
+                    Spring* spring1 = new Spring(getNode(i, j), getNode(i+1, j+1), shearCoef);
+                    Spring* spring2 = new Spring(getNode(i+1, j), getNode(i, j+1), shearCoef);
+                    springs.push_back(spring1);
+                    springs.push_back(spring2);
                 }
                 /** Bending **/
-                if (i < nodesPerRow-2) springs.push_back(new Spring(getNode(i, j), getNode(i+2, j), bendingCoef));
-                if (j < nodesPerCol-2) springs.push_back(new Spring(getNode(i, j), getNode(i, j+2), bendingCoef));
+                if (i < nodesPerRow-2) {
+                    Spring* spring = new Spring(getNode(i, j), getNode(i+2, j), bendingCoef);
+                    springs.push_back(spring);
+                }
+                if (j < nodesPerCol-2) {
+                    Spring* spring = new Spring(getNode(i, j), getNode(i, j+2), bendingCoef);
+                    springs.push_back(spring);
+                }
             }
         }
         
@@ -172,7 +186,124 @@ public:
 		}
 	}
 
-    void simulation(double timeStep, Vec3 gravity, Ground* ground, Ball* ball) {
+void simulation(double timeStep, Vec3 gravity, Ground* ground, Ball* ball) {
+    double total_start = omp_get_wtime();
+    double simulation_time = 0.0;
+
+    if (enable_parallel) {
+        #pragma omp parallel for num_threads(num_threads)
+        for (int i = 0; i < nodes.size(); i++) {
+            Node* node = nodes[i];
+            
+            // Reset forces
+            //node->force = Vec3(0.0, 0.0, 0.0);
+
+            // Calculate spring forces
+            //std::cout << "connectedSprings: " << node->connectedSprings.size() << std::endl;
+            for (Spring* spring : node->connectedSprings) {
+                Vec3 force = spring->computeForce(node);
+                std::cout << "Spring " << i << ": Force = " << force << std::endl;
+                node->addForce(force);
+            }
+
+            std::cout << "Node " << i << ": Position = " << node->position << ", Force = " << node->force << std::endl;
+            // Integrate node
+            node->integrate(timeStep);
+
+            // // Debug output
+            //#pragma omp critical
+            //{
+                //std::cout << "Node " << i << ": Position = " << node->position << ", Velocity = " << node->velocity << std::endl;
+            //}
+
+            // Ground collision
+            if (getWorldPos(node).y < ground->position.y) {
+                node->position.y = ground->position.y - clothPos.y + 0.01;
+                node->velocity = node->velocity * ground->friction;
+            }
+
+            // Ball collision
+            Vec3 distVec = getWorldPos(node) - ball->center;
+            double distLen = distVec.length();
+            double safeDist = ball->radius * 1.1;
+            if (distLen < safeDist) {
+                distVec.normalize();
+                setWorldPos(node, distVec * safeDist + ball->center);
+                node->velocity = node->velocity * ball->friction;
+            }
+        }
+    } else {
+        for (int i = 0; i < nodes.size(); i++) {
+            Node* node = nodes[i];
+            
+            // Reset forces
+            //node->force = Vec3(0.0, 0.0, 0.0);
+
+            // Calculate spring forces
+            for (Spring* spring : node->connectedSprings) {
+                Vec3 force = spring->computeForce(node);
+                node->addForce(force);
+            }
+
+            std::cout << "Node " << i << ": Position = " << node->position << ", Force = " << node->force << std::endl;
+
+            // Integrate node
+            //node->integrate(timeStep);
+
+            // Debug output
+            //std::cout << "Node " << i << ": Position = " << node->position << ", Velocity = " << node->velocity << std::endl;
+            //std::cout << "Node " << i << ": Position = " << node->position << ", Force = " << node->force << std::endl;
+            // Ground collision
+            if (getWorldPos(node).y < ground->position.y) {
+                node->position.y = ground->position.y - clothPos.y + 0.01;
+                node->velocity = node->velocity * ground->friction;
+            }
+
+            // Ball collision
+            Vec3 distVec = getWorldPos(node) - ball->center;
+            double distLen = distVec.length();
+            double safeDist = ball->radius * 1.1;
+            if (distLen < safeDist) {
+                distVec.normalize();
+                setWorldPos(node, distVec * safeDist + ball->center);
+                node->velocity = node->velocity * ball->friction;
+            }
+        }
+    }
+
+    double total_time = omp_get_wtime() - total_start;
+
+    // stats
+    #pragma omp critical
+    {
+        static int frame_count = 0;
+        static double last_time = 0.0;
+        static double fps = 0.0;
+
+        frame_count++;
+        double current_time = omp_get_wtime();
+
+        // update FPS per second
+        if (current_time - last_time >= 1.0) {
+            fps = frame_count / (current_time - last_time);
+            frame_count = 0;
+            last_time = current_time;
+
+            // only output performance data when FPS is updated
+            std::cout << "performance data:\n"
+                      << "FPS: " << std::fixed << std::setprecision(2) << fps << "\n"
+                      << "total time: " << total_time * 1000 << " ms\n"
+                      << "simulation time: " << simulation_time * 1000 << " ms\n"
+                      << "Current threads: " << num_threads << "\n"
+                      << "total nodes: " << nodes.size() << "\n"
+                      << "total springs: " << springs.size() << "\n"
+                      << "------------------------\n";
+        }
+    }
+}
+
+//simulation
+void spring_based_simulation(double timeStep, Vec3 gravity, Ground* ground, Ball* ball) {
         // init
         double total_start = omp_get_wtime();
         double simulation_time = 0.0;
@@ -198,6 +329,7 @@ public:
                     if (springs[i]->node1->TempSpringCount <= 0) {
                         springs[i]->node1->TempSpringCount = springs[i]->node1->SpringCount;
                         springs[i]->node1->integrate(timeStep);
+                        std::cout << "Node " << i << ": Position = " << springs[i]->node1->position << ", Velocity = " << springs[i]->node1->velocity << std::endl;
                         /** Ground collision **/
                         // if (getWorldPos(springs[i]->node1).y < ground->position.y) {
                         //     springs[i]->node1->position.y = ground->position.y - clothPos.y + 0.01;
@@ -313,8 +445,9 @@ public:
                         << "total springs: " << springs.size() << "\n"
                         << "------------------------\n";
             }
-        }
+       }
     }
+
 
 	// void integrate(double airFriction, double timeStep)
 	// {
