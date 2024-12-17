@@ -57,8 +57,9 @@ struct Camera
         // 将窗口坐标转换为标准化设备坐标
         
         //glm::vec3 screenPos = glm::vec3(xpos, screenHeight - ypos, 1.0f); // 注意 y 轴的翻转
-        glm::vec3 screenPosNear = glm::vec3(xpos, screenHeight - ypos, 0.0f); // 近平面
-        glm::vec3 screenPosFar = glm::vec3(xpos, screenHeight - ypos, 1.0f); // 远平面
+        //glm::vec3 campos = this->pos;
+        glm::vec3 screenPosNear = glm::vec3(xpos, screenHeight - ypos, 0.0f); // 近平面上的点
+        glm::vec3 screenPosFar = glm::vec3(xpos, screenHeight - ypos, 1.0f); // 远平面上的点
         // 获取视图矩阵和投影矩阵
         glm::mat4 viewMatrix = uniViewMatrix;
         glm::mat4 projMatrix = uniProjMatrix;
@@ -72,8 +73,10 @@ struct Camera
         glm::vec3 worldPosFar = glm::unProject(screenPosFar, viewMatrix, projMatrix, viewport);
         // 计算射线方向
         glm::vec3 rayDirection = glm::normalize(worldPosFar - worldPosNear);
+        //glm::vec3 rayDirection2 = glm::normalize(campos - worldPosNear);
 
         return glm::vec3(rayDirection.x, rayDirection.y, rayDirection.z);
+        //return glm::vec3(rayDirection2.x, rayDirection2.y, rayDirection2.z);
     }
     
     void updateViewMatrix()
@@ -151,6 +154,17 @@ struct Camera
         
         yaw = glm::degrees(atan2(-toTarget.z, -toTarget.x));
         front = glm::normalize(toTarget);
+    }
+
+    void resetView() {
+        pos = glm::vec3(0.0f, 4.0f, 12.0f);
+        front = glm::vec3(0.0f, 0.0f, -2.0f);
+        up = glm::vec3(0.0f, 1.0f, 0.0f);
+        target = glm::vec3(0.0f, 3.0f, -2.0f);
+        zoom(1.0f);
+        panTarget(0.0f, 0.0f);
+        //updateOrbitCamera();
+        //updateViewMatrix();
     }
 };
 Camera cam;
@@ -439,8 +453,8 @@ struct SpringRender
         glUniform3fv(glGetUniformLocation(programID, "uniLightColor"), 1, &(sun.color[0]));
 
         // Cleanup
-        glBindBuffer(GL_ARRAY_BUFFER, 0); // Unbined VBO
-        glBindVertexArray(0); // Unbined VAO
+        glBindBuffer(GL_ARRAY_BUFFER, 0); // Unbind VBO
+        glBindVertexArray(0); // Unbind VAO
     }
     
     void destroy()
@@ -486,7 +500,7 @@ struct SpringRender
         glUniformMatrix4fv(glGetUniformLocation(programID, "uniViewMatrix"), 1, GL_FALSE, &cam.uniViewMatrix[0][0]);
         
         glEnable(GL_BLEND);
-        glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         
         /** Draw **/
         glDrawArrays(GL_LINES, 0, springCount*2);
@@ -513,7 +527,8 @@ struct ClothSpringRender
         render.init(cloth->springs, defaultColor, glm::vec3(cloth->clothPos.x, cloth->clothPos.y, cloth->clothPos.z));
     }
     
-    void flush() { render.flush(); }
+    void flush() { 
+        render.flush(); }
 };
 
 struct RigidRender // Single color & Lighting

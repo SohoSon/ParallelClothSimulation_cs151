@@ -33,34 +33,34 @@ public:
 
 	void applyInternalForce(double timeStep) // Compute spring internal force
 	{
-        double currLen = Vec3::dist(node1->position, node2->position);  // 计算当前长度
-        Vec3 fDir1 = (node2->position - node1->position)/currLen; // 计算力方向
-        Vec3 diffV1 = node2->velocity - node1->velocity; // 计算速度差
-        Vec3 f1 = fDir1 * ((currLen-restLen)*hookCoef + Vec3::dot(diffV1, fDir1)*dampCoef); // 计算力
-        node1->addForce(f1); // 将力添加到节点1
-        node2->addForce(f1.minus()); // 将力添加到节点2
+        double currLen = Vec3::dist(node1->position, node2->position);  // calculate the current length
+        Vec3 fDir1 = (node2->position - node1->position)/currLen; // calculate the force direction
+        Vec3 diffV1 = node2->velocity - node1->velocity; // calculate the velocity difference
+        Vec3 f1 = fDir1 * ((currLen-restLen)*hookCoef + Vec3::dot(diffV1, fDir1)*dampCoef); // calculate the force
+        node1->addForce(f1); // add force to node1
+        node2->addForce(f1.minus()); // add force to node2
 	}
     
     Vec3 computeForce(Node* node) {
-        double currLen = Vec3::dist(node1->position, node2->position);  // 计算当前长度
+        double currLen = Vec3::dist(node1->position, node2->position);  // calculate the current length
         if (currLen == 0) {
             std::cerr << "Warning: Zero length spring encountered!" << std::endl;
             return Vec3(0, 0, 0);
         }
-        Vec3 fDir1 = (node2->position - node1->position)/currLen; // 计算力方向
-        Vec3 diffV1 = node2->velocity - node1->velocity; // 计算速度差
-        Vec3 f1 = fDir1 * ((currLen-restLen)*hookCoef + Vec3::dot(diffV1, fDir1)*dampCoef); // 计算力
+        Vec3 fDir1 = (node2->position - node1->position)/currLen; // calculate the force direction
+        Vec3 diffV1 = node2->velocity - node1->velocity; // calculate the velocity difference
+        Vec3 f1 = fDir1 * ((currLen-restLen)*hookCoef + Vec3::dot(diffV1, fDir1)*dampCoef); // calculate the force
 
-        // 根据传入的节点返回相应的力
+        // return the force corresponding to the node
         if (node == node1) {
             //cout << "node1 force: " << totalForce.x << ", " << totalForce.y << ", " << totalForce.z << endl;
-            return f1;    // 对 node1 施加正向力
+            return f1;    // apply force to node1
         } else if (node == node2) {
             //cout << "node2 force: " << totalForce.x << ", " << totalForce.y << ", " << totalForce.z << endl;
-            return f1.minus();   // 对 node2 施加反向力
+            return f1.minus();   // apply negative force to node2
         } else {
             cout << "node not in spring" << endl;
-            return Vec3(0.0, 0.0, 0.0); // 如果节点不属于弹簧，返回零力
+            return Vec3(0.0, 0.0, 0.0); // if node not in spring, return zero force
         }
     }
 };

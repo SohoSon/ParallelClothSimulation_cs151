@@ -89,6 +89,12 @@ struct Vec3
 		return Vec3(x-v.x, y-v.y, z-v.z);
 	}
 
+    // TODO
+    Vec3 operator--() const
+    {
+        return Vec3(-x, -y, -z);
+    }
+
 	void operator+=(Vec3 v)
 	{
 		x += v.x;
@@ -101,6 +107,15 @@ struct Vec3
 		y -= v.y;
 		z -= v.z;
 	}
+
+    // new normalized, because diff is a temporary object, cannot call normalize
+    Vec3 normalized() const {
+        float len = length();
+        if (len > 1e-8) {
+            return Vec3(x / len, y / len, z / len);
+        }
+        return Vec3(0, 0, 0);
+    }
     
 	Vec3 operator*(double n)
 	{
@@ -120,7 +135,7 @@ struct Vec3
         return x != v.x || y != v.y || z != v.z;
     }
 
-    double length()
+    double length() const
     {
         return sqrt(x*x + y*y + z*z);
     }
@@ -146,10 +161,21 @@ struct Vec3
         y = -9.8 / 100;
         z = 0.0;
 	}
-
-    // 重载 << 运算符
+    //overloading << operator
     friend std::ostream& operator<<(std::ostream& os, const Vec3& vec) {
         os << "(" << vec.x << ", " << vec.y << ", " << vec.z << ")";
         return os;
     }
 };
+
+
+
+    // void normalize()
+    // {
+    //     double w = length();
+    //     if (w < 0.00001) return;
+        
+    //     x /= w;
+    //     y /= w;
+    //     z /= w;
+    // }

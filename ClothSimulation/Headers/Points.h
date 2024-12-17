@@ -35,7 +35,7 @@ public:
     // std::atomic<int>     TempSpringCount;
     int     TempSpringCount;
     //for node-based parallel
-    std::vector<Spring*> connectedSprings; // 新增：存储与节点相连的弹簧
+    std::vector<Spring*> connectedSprings; // store springs connected to the node
 
 public:
     Node(void) {
@@ -74,9 +74,9 @@ public:
 	{
 		if (!isFixed) // Verlet integration
 		{
-            acceleration = force/mass; // 计算加速度
-            velocity += acceleration*timeStep; // 更新速度
-            position += velocity*timeStep; // 更新位置
+            acceleration = force/mass; // calculate acceleration
+            velocity += acceleration*timeStep; // update velocity
+            position += velocity*timeStep; // update position
         }
         force.setInitVec();
 	}
