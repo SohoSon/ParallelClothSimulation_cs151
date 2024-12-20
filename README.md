@@ -1,10 +1,12 @@
-# Cloth Simulation
-<div class="center">
-  <img src="Images/DrawMode1.png" alt="DrawMode1" width="30%"/><img src="Images/DrawMode2.png" alt="DrawMode2" width="30%"/><img src="Images/DrawMode3.png" alt="DrawMode3" width="30%"/>
-</div>
-
+# Final Project: CS 151 Parallel Optimization In Cloth Simulation
 ### UI
-- ##### Window
+- ##### Parallel option
+  - use slider to control the number of threads
+- ##### Simulation Control
+  - two modes:
+    - `Pull Model`
+    - `Push Model`
+- ##### Program Control
   - `ESC` Exit
 - ##### Draw Mode: Change the rendering mode of cloth
   - `Z` Node Mode

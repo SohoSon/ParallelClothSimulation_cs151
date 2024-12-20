@@ -6,10 +6,19 @@
 #include "Spring.h"
 #include "Rigid.h"
 #include <iomanip> 
+#include <unordered_map>
+#include <cmath>
+#include <iostream>
+#include <fstream>
+#include <iomanip> // for std::setprecision
+#include <sstream>
+
 class Cloth
 {
 public:
-    const int nodesDensity = 15;
+    //const int nodesDensity = 90/6;
+    const int nodesDensity = 10;
+    
     const int iterationFreq = 100;
     const double structuralCoef = 4000.0;
     const double shearCoef = 50.0;
@@ -36,7 +45,7 @@ public:
     
     // add parallel control variables
     bool enable_parallel = true;  // control whether to enable parallel
-    int num_threads = 4;          // control thread number  
+    int num_threads = 3;          // control thread number  
 
 	Cloth(Vec3 pos, Vec2 size)
 	{
@@ -82,6 +91,9 @@ public:
 	{
         nodesPerRow = width * nodesDensity;
         nodesPerCol = height * nodesDensity;
+        // for weak scalability 
+        // nodesPerRow = 90;
+        // nodesPerCol = 90;
         
         pin1 = Vec2(0, 0);
         pin2 = Vec2(nodesPerRow-1, 0);
@@ -172,104 +184,370 @@ public:
 		}
 	}
 
-    void simulation(double timeStep, Vec3 gravity, Ground* ground, Ball* ball) {
-        // init
-        double total_start = omp_get_wtime();
-        double simulation_time = 0.0;
-        // for(int i = 0; i < nodes.size(); i++) {
-        //     nodes[i]->TempSpringCount = nodes[i]->SpringCount;
-        // }
-        // spring force calculation
-        {
-            double start = omp_get_wtime();
-            if (enable_parallel) {
-                #pragma omp parallel for num_threads(num_threads) schedule(static, 256)
-                for (int i = 0; i < springs.size(); i++) {
-                    springs[i]->applyInternalForce(timeStep);
-                 
-                    // omp_set_lock(&node_locks[springs[i]->node1]);
-                    // omp_set_lock(&node_locks[springs[i]->node2]);
-                    #pragma omp atomic
-                    springs[i]->node1->TempSpringCount--;
-                    #pragma omp atomic
-                    springs[i]->node2->TempSpringCount--;
-                //     omp_unset_lock(&node_locks[springs[i]->node1]);
-                // omp_unset_lock(&node_locks[springs[i]->node2]);
-                    if (springs[i]->node1->TempSpringCount <= 0) {
-                        springs[i]->node1->TempSpringCount = springs[i]->node1->SpringCount;
-                        springs[i]->node1->integrate(timeStep);
-                        /** Ground collision **/
-                        // if (getWorldPos(springs[i]->node1).y < ground->position.y) {
-                        //     springs[i]->node1->position.y = ground->position.y - clothPos.y + 0.01;
-                        //     springs[i]->node1->velocity = springs[i]->node1->velocity * ground->friction;
-                        // }
+void node_based_simulation(double timeStep, Vec3 gravity, Ground* ground, Ball* ball, float cellSize) {
+    // now it can be used for output
+    std::ofstream outputFile("pull_mode_performance.txt", std::ios::app); // write mode
+
+    double total_start = omp_get_wtime();
+    double simulation_time = 0.0;
+    //std::unordered_map<int, std::vector<Node*>> spatialHash;
+    
+        double thickness = 0.01;
+        double thickness2 = thickness * thickness;
+        double maxDist = 1;
+        double maxDist2 = maxDist * maxDist;
+    //float cellSize = 0.1f; 
+    std::vector<std::vector<int>> adjacencyList(nodes.size());
+    // 
+    if (handleCollisions) {
+        std::unordered_map<int, std::vector<int>> spatialHash;
+        spatialHash.reserve(nodes.size());
+        spatialHash.max_load_factor(0.7);
+
+        for (size_t i = 0; i < nodes.size(); i++) {
+            Node* n = nodes[i];
+            if (n->isFixed) continue;
+            
+            int gridX = (int)std::floor(n->position.x / cellSize);
+            int gridY = (int)std::floor(n->position.y / cellSize);
+            int gridZ = (int)std::floor(n->position.z / cellSize);
+            int hashKey = hashFunction(gridX, gridY, gridZ);
+            spatialHash[hashKey].push_back((int)i);
+        }
+
+
+    
+
+
+    // define a function to get the nodes in the bucket corresponding to the given coordinates
+    auto getBucketNodes = [&](int x, int y, int z) -> const std::vector<int>& {
+        int key = hashFunction(x, y, z);
+        auto it = spatialHash.find(key);
+        if (it != spatialHash.end()) {
+            return it->second;
+        }
+        static const std::vector<int> empty;
+        return empty;
+    };
+
+    // for each node, perform the "query" operation
+    #pragma omp parallel for num_threads(num_threads)
+    for (size_t i = 0; i < nodes.size(); i++) {
+        Node* n0 = nodes[i];
+        if (n0->isFixed) continue;
+
+        int gridX = (int)std::floor(n0->position.x / cellSize);
+        int gridY = (int)std::floor(n0->position.y / cellSize);
+        int gridZ = (int)std::floor(n0->position.z / cellSize);
+
+        // search range, including the current grid and adjacent grids
+        // you can increase or decrease the search range according to your needs
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dy = -1; dy <= 1; dy++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    const std::vector<int>& bucketNodes = getBucketNodes(gridX+dx, gridY+dy, gridZ+dz);
+                    for (int idx : bucketNodes) {
+                        if ((size_t)idx == i) continue; // 
+                        Node* n1 = nodes[idx];
+                        if (n1->isFixed) continue;
                         
-                        /** Ball collision **/
-                        Vec3 distVec = getWorldPos(springs[i]->node1) - ball->center;
-                        double distLen = distVec.length();
-                        double safeDist = ball->radius*1.1;
-                        if (distLen < safeDist) {
-                            distVec.normalize();
-                            setWorldPos(springs[i]->node1, distVec*safeDist+ball->center);
-                            springs[i]->node1->velocity = springs[i]->node1->velocity * ball->friction;
-                        }
-                    }
-                    if (springs[i]->node2->TempSpringCount <= 0) {
-                        springs[i]->node2->integrate(timeStep);
-                        springs[i]->node2->TempSpringCount = springs[i]->node2->SpringCount;
-                        /** Ground collision **/
-                        // if (getWorldPos(springs[i]->node2).y < ground->position.y) {
-                        //     springs[i]->node2->position.y = ground->position.y - clothPos.y + 0.01;
-                        //     springs[i]->node2->velocity = springs[i]->node2->velocity * ground->friction;
-                        // }
-                        
-                        /** Ball collision **/
-                        Vec3 distVec = getWorldPos(springs[i]->node2) - ball->center;
-                        double distLen = distVec.length();
-                        double safeDist = ball->radius*1.1;
-                        if (distLen < safeDist) {
-                            distVec.normalize();
-                            setWorldPos(springs[i]->node2, distVec*safeDist+ball->center);
-                            springs[i]->node2->velocity = springs[i]->node2->velocity * ball->friction;
+                        double dx = n1->position.x - n0->position.x;
+                        double dy = n1->position.y - n0->position.y;
+                        double dz = n1->position.z - n0->position.z;
+                        double dist2 = dx*dx + dy*dy + dz*dz;
+
+                        if (dist2 < maxDist2) {
+                            // n1 is a neighbor of n0
+                            adjacencyList[i].push_back(idx);
                         }
                     }
                 }
-            } else {
-                for (int i = 0; i < springs.size(); i++) {
-                    springs[i]->applyInternalForce(timeStep);
-                    
-                    springs[i]->node1->TempSpringCount--;
-                    springs[i]->node2->TempSpringCount--;
-                 
-                    if (springs[i]->node1->TempSpringCount == 0) {
-                        springs[i]->node1->integrate(timeStep);
-                        springs[i]->node1->TempSpringCount = springs[i]->node1->SpringCount;
-                        /** Ground collision **/
-                        // if (getWorldPos(springs[i]->node1).y < ground->position.y) {
-                        //     springs[i]->node1->position.y = ground->position.y - clothPos.y + 0.01;
-                        //     springs[i]->node1->velocity = springs[i]->node1->velocity * ground->friction;
-                        // }
-                        
-                        /** Ball collision **/
-                        Vec3 distVec = getWorldPos(springs[i]->node1) - ball->center;
-                        double distLen = distVec.length();
-                        double safeDist = ball->radius*1.1;
-                        if (distLen < safeDist) {
-                            distVec.normalize();
-                            setWorldPos(springs[i]->node1, distVec*safeDist+ball->center);
-                            springs[i]->node1->velocity = springs[i]->node1->velocity * ball->friction;
-                        }
-                    }
-                    if (springs[i]->node2->TempSpringCount == 0) {
-                        springs[i]->node2->integrate(timeStep);
-                        springs[i]->node2->TempSpringCount = springs[i]->node2->SpringCount;
-                        /** Ground collision **/
+            }
+        }
+    }
+ // output adjacencyList information
+    // for (size_t i = 0; i < adjacencyList.size(); i++) {
+    //     std::cout << "Node " << i << " has neighbors: ";
+    //     for (int neighbor : adjacencyList[i]) {
+    //         std::cout << neighbor << " ";
+    //     }
+    //     std::cout << std::endl;
+    // }
+    }
+
+    
+    if (enable_parallel) {
+        #pragma omp parallel for num_threads(num_threads)
+        for (int i = 0; i < nodes.size(); i++) {
+            Node* node = nodes[i];
+            
+            // Reset forces
+            //node->force = Vec3(0.0, -9.8/100, 0.0);
+
+            // Calculate spring forces
+            //std::cout << "connectedSprings: " << node->connectedSprings.size() << std::endl;
+            for (Spring* spring : node->connectedSprings) {
+                Vec3 force = spring->computeForce(node);
+                //std::cout << "Spring " << i << ": Force = " << force << std::endl;
+                node->addForce(force);
+            }
+
+        }
+        #pragma omp parallel for num_threads(num_threads)
+        for (int i = 0; i < nodes.size(); i++) {
+            Node* node = nodes[i];
+            node->integrate(timeStep);
+
+            // Ground collision
+            if (groundRender_visible) {
+                if (getWorldPos(node).y < ground->position.y) {
+                    node->position.y = ground->position.y - clothPos.y + 0.01;
+                    node->velocity = node->velocity * ground->friction;
+                }
+            }
+
+            // Ball collision
+            if (ballRender_visible) {
+                Vec3 distVec = getWorldPos(node) - ball->center;
+                double distLen = distVec.length();
+                double safeDist = ball->radius * 1.1;
+                if (distLen < safeDist) {
+                    distVec.normalize();
+                    setWorldPos(node, distVec * safeDist + ball->center);
+                    node->velocity = node->velocity * ball->friction;
+                }
+            }
+
+        if (handleCollisions) {
+            Node* n0 = node;
+            if (n0->isFixed) continue;
+            for (int j : adjacencyList[i]) {
+                Node* n1 = nodes[j];
+                if (n1->isFixed) continue;
+                
+                // check if the distance between two nodes is greater than thickness
+                Vec3 diff = n1->position - n0->position;
+                double dist = diff.length(); // calculate the distance between two nodes
+                double dist2 = dist*dist; // calculate the square of the distance between two nodes
+                if (dist2 > thickness2 || dist2 < 1e-12) continue;
+                
+                // position correction
+
+                // // if you need to compare with restPositions (choose logic)sd
+                // double restDist2 = (restPositions[j] - restPositions[i]).lengthSquared();
+                // if (dist2 > restDist2) {
+                //     // original logic: if the current distance is greater than the initial distance, do not process
+                //     continue;
+                // }
+                // // if restDist2 is smaller than thicknessSquared, then minDist = sqrt(restDist2)
+                double minDist = thickness; // minimum distance
+                // if (restDist2 < thicknessSquared) {
+                //     minDist = std::sqrt(restDist2);
+                // }
+                diff = diff * (1.0/dist);  // normalize
+                double penetration = (minDist - dist); // calculate the penetration depth
+                Vec3 correction = diff * (0.5 * penetration);
+                n0->position -= correction;
+                n1->position += correction;
+            }
+        }
+    }
+
+
+
+    } else {
+        //#pragma omp parallel for num_threads(num_threads)
+        for (int i = 0; i < nodes.size(); i++) {
+            Node* node = nodes[i];
+            
+            // Reset forces
+            //node->force = Vec3(0.0, -9.8/100, 0.0);
+
+            // Calculate spring forces
+            //std::cout << "connectedSprings: " << node->connectedSprings.size() << std::endl;
+            for (Spring* spring : node->connectedSprings) {
+                Vec3 force = spring->computeForce(node);
+                //std::cout << "Spring " << i << ": Force = " << force << std::endl;
+                node->addForce(force);
+            }
+
+        }
+        //#pragma omp parallel for num_threads(num_threads)
+        for (int i = 0; i < nodes.size(); i++) {
+            Node* node = nodes[i];
+            node->integrate(timeStep);
+
+            // Ground collision
+            if (groundRender_visible) {
+                if (getWorldPos(node).y < ground->position.y) {
+                    node->position.y = ground->position.y - clothPos.y + 0.01;
+                    node->velocity = node->velocity * ground->friction;
+                }
+            }
+
+            // Ball collision
+            if (ballRender_visible) {
+                Vec3 distVec = getWorldPos(node) - ball->center;
+                double distLen = distVec.length();
+                double safeDist = ball->radius * 1.1;
+                if (distLen < safeDist) {
+                    distVec.normalize();
+                    setWorldPos(node, distVec * safeDist + ball->center);
+                    node->velocity = node->velocity * ball->friction;
+                }
+            }
+
+        //     // Self collision
+        //     for (auto& cell : spatialHash) {
+        //         std::vector<Node*>& cellNodes = cell.second;
+        //         for (size_t i = 0; i < cellNodes.size(); ++i) {
+        //             for (size_t j = i + 1; j < cellNodes.size(); ++j) {
+        //                 Node* a = cellNodes[i];
+        //                 Node* b = cellNodes[j];
+
+        //                 Vec3 diff = b->position - a->position;
+        //                 float dist = diff.length();
+        //                 const int maxIterations = 10;
+        //                 int iteration = 0;
+
+        //                 while (dist < collisionDistance && iteration < maxIterations) {
+        //                     float tolerance = 1e-4f;
+        //                     Vec3 correction = diff.normalized() * (collisionDistance - dist + tolerance);
+
+        //                     float springStiffness = 500.0f;
+        //                     Vec3 springForce = correction * springStiffness;
+
+        //                     if (!a->isFixed) {
+        //                         a->addForce(springForce);
+        //                     }
+        //                     if (!b->isFixed) {
+        //                         b->addForce(--springForce);
+        //                     }
+
+        //                     diff = b->position - a->position;
+        //                     dist = diff.length();
+        //                     iteration++;
+        //                 }
+        //             }
+        //         }
+        //     } //
+        }
+    }
+
+    double total_time = omp_get_wtime() - total_start;
+
+    // stats
+    #pragma omp critical
+    {
+        static int frame_count = 0;
+        static double last_time = 0.0;
+        static double fps = 0.0;
+
+        frame_count++;
+        double current_time = omp_get_wtime();
+
+        // update FPS per second
+        if (current_time - last_time >= 1.0) {
+            fps = frame_count / (current_time - last_time);
+            frame_count = 0;
+            last_time = current_time;
+
+            // build output string
+            std::ostringstream output;
+            // output to file
+            output << num_threads << ","
+                   << std::fixed << std::setprecision(2) << fps / iterationFreq << ","
+                   << total_time * 1000 << "\n";
+
+            std::cout << "performance data:\n"
+                   << "FPS: " << std::fixed << std::setprecision(2) << fps / iterationFreq << "\n"
+                   << "total time: " << total_time * 1000 << " ms\n"
+                   //<< "simulation time: " << simulation_time * 1000 << " ms\n"
+                   << "Current threads: " << num_threads << "\n"
+                   << "total nodes: " << nodes.size() << "\n"
+                   << "total springs: " << springs.size() << "\n"
+                   << "------------------------\n";
+
+            // output to terminal
+            //std::cout << output.str();
+
+            // output to file
+            if (outputFile.is_open()) {
+                outputFile << output.str();
+            }
+        }
+    }
+
+    // close file stream
+    outputFile.close();
+}
+
+
+//simulation
+void spring_based_simulation(double timeStep, Vec3 gravity, Ground* ground, Ball* ball) {
+    // open file stream
+    std::ofstream outputFile("2.txt", std::ios::app); // append mode
+
+
+    // init
+    double total_start = omp_get_wtime();
+    double simulation_time = 0.0;
+    // for(int i = 0; i < nodes.size(); i++) {
+    //     nodes[i]->TempSpringCount = nodes[i]->SpringCount;
+    // }
+    // spring force calculation
+    {
+        double start = omp_get_wtime();
+        if (enable_parallel) {
+            #pragma omp parallel for num_threads(num_threads) schedule(static, 256)
+            for (int i = 0; i < springs.size(); i++) {
+                springs[i]->applyInternalForce(timeStep);
+             
+                // omp_set_lock(&node_locks[springs[i]->node1]);
+                // omp_set_lock(&node_locks[springs[i]->node2]);
+                #pragma omp atomic
+                springs[i]->node1->TempSpringCount--;
+                #pragma omp atomic
+                springs[i]->node2->TempSpringCount--;
+            //     omp_unset_lock(&node_locks[springs[i]->node1]);
+            // omp_unset_lock(&node_locks[springs[i]->node2]);
+                if (springs[i]->node1->TempSpringCount <= 0) {
+                    springs[i]->node1->TempSpringCount = springs[i]->node1->SpringCount;
+                    springs[i]->node1->integrate(timeStep);
+                    //std::cout << "Node " << i << ": Position = " << springs[i]->node1->position << ", Velocity = " << springs[i]->node1->velocity << std::endl;
+                    /** Ground collision **/
+                    if (groundRender_visible) { 
                         if (getWorldPos(springs[i]->node2).y < ground->position.y) {
                             springs[i]->node2->position.y = ground->position.y - clothPos.y + 0.01;
                             springs[i]->node2->velocity = springs[i]->node2->velocity * ground->friction;
                         }
-                        
-                        /** Ball collision **/
+                    }
+                    
+                    /** Ball collision **/
+                    if (ballRender_visible) {
+                        Vec3 distVec = getWorldPos(springs[i]->node2) - ball->center;
+                        double distLen = distVec.length();
+                        double safeDist = ball->radius*1.1;
+                        if (distLen < safeDist) {
+                            distVec.normalize();
+                            setWorldPos(springs[i]->node2, distVec*safeDist+ball->center);
+                            springs[i]->node2->velocity = springs[i]->node2->velocity * ball->friction;
+                        }
+                    }
+                }
+                if (springs[i]->node2->TempSpringCount <= 0) {
+                    springs[i]->node2->integrate(timeStep);
+                    springs[i]->node2->TempSpringCount = springs[i]->node2->SpringCount;
+                    /** Ground collision **/
+                    if (groundRender_visible) { 
+                        if (getWorldPos(springs[i]->node2).y < ground->position.y) {
+                            springs[i]->node2->position.y = ground->position.y - clothPos.y + 0.01;
+                            springs[i]->node2->velocity = springs[i]->node2->velocity * ground->friction;
+                        }
+                    }
+                    
+                    /** Ball collision **/
+                    if (ballRender_visible) {
                         Vec3 distVec = getWorldPos(springs[i]->node2) - ball->center;
                         double distLen = distVec.length();
                         double safeDist = ball->radius*1.1;
@@ -281,40 +559,112 @@ public:
                     }
                 }
             }
-            simulation_time = omp_get_wtime() - start;
-        }
-
-        double total_time = omp_get_wtime() - total_start;
-
-        // stats
-        #pragma omp critical
-        {
-            static int frame_count = 0;
-            static double last_time = 0.0;
-            static double fps = 0.0;
-            
-            frame_count++;
-            double current_time = omp_get_wtime();
-            
-            // update FPS per second
-            if (current_time - last_time >= 1.0) {
-                fps = frame_count / (current_time - last_time);
-                frame_count = 0;
-                last_time = current_time;
+        } else {
+            for (int i = 0; i < springs.size(); i++) {
+                springs[i]->applyInternalForce(timeStep);
                 
-                // only output performance data when FPS is updated
-                std::cout << "performance data:\n"
-                        << "FPS: " << std::fixed << std::setprecision(2) << fps << "\n"
-                        << "total time: " << total_time * 1000 << " ms\n"
-                        << "spring calc time: " << simulation_time * 1000 << " ms\n"
-                        //<< "Current threads: " << omp_get_max_threads() << "\n"
-                        << "Current threads: " << num_threads << "\n"
-                        << "total nodes: " << nodes.size() << "\n"
-                        << "total springs: " << springs.size() << "\n"
-                        << "------------------------\n";
+                springs[i]->node1->TempSpringCount--;
+                springs[i]->node2->TempSpringCount--;
+             
+                if (springs[i]->node1->TempSpringCount == 0) {
+                    springs[i]->node1->integrate(timeStep);
+                    springs[i]->node1->TempSpringCount = springs[i]->node1->SpringCount;
+                    /** Ground collision **/
+                    if (groundRender_visible) { 
+                        if (getWorldPos(springs[i]->node2).y < ground->position.y) {
+                            springs[i]->node2->position.y = ground->position.y - clothPos.y + 0.01;
+                            springs[i]->node2->velocity = springs[i]->node2->velocity * ground->friction;
+                        }
+                    }
+                    
+                    /** Ball collision **/
+                    if (ballRender_visible) {
+                        Vec3 distVec = getWorldPos(springs[i]->node2) - ball->center;
+                        double distLen = distVec.length();
+                        double safeDist = ball->radius*1.1;
+                        if (distLen < safeDist) {
+                            distVec.normalize();
+                            setWorldPos(springs[i]->node2, distVec*safeDist+ball->center);
+                            springs[i]->node2->velocity = springs[i]->node2->velocity * ball->friction;
+                        }
+                    }
+                }
+                if (springs[i]->node2->TempSpringCount == 0) {
+                    springs[i]->node2->integrate(timeStep);
+                    springs[i]->node2->TempSpringCount = springs[i]->node2->SpringCount;
+                    /** Ground collision **/
+                    if (groundRender_visible) { 
+                        if (getWorldPos(springs[i]->node2).y < ground->position.y) {
+                            springs[i]->node2->position.y = ground->position.y - clothPos.y + 0.01;
+                            springs[i]->node2->velocity = springs[i]->node2->velocity * ground->friction;
+                        }
+                    }
+                    
+                    /** Ball collision **/
+                    if (ballRender_visible) {
+                        Vec3 distVec = getWorldPos(springs[i]->node2) - ball->center;
+                        double distLen = distVec.length();
+                        double safeDist = ball->radius*1.1;
+                        if (distLen < safeDist) {
+                            distVec.normalize();
+                            setWorldPos(springs[i]->node2, distVec*safeDist+ball->center);
+                            springs[i]->node2->velocity = springs[i]->node2->velocity * ball->friction;
+                        }
+                    }
+                }
+            }
+        }
+        simulation_time = omp_get_wtime() - start;
+    }
+
+    double total_time = omp_get_wtime() - total_start;
+
+    // stats
+    #pragma omp critical
+    {
+        static int frame_count = 0;
+        static double last_time = 0.0;
+        static double fps = 0.0;
+
+        frame_count++;
+        double current_time = omp_get_wtime();
+
+        // update FPS per second
+        if (current_time - last_time >= 1.0) {
+            fps = frame_count / (current_time - last_time);
+            frame_count = 0;
+            last_time = current_time;
+
+            // 构建输出字符串
+            std::ostringstream output;
+
+            
+
+            // output to CSV format, for later processing
+            output << num_threads << ","
+                   << std::fixed << std::setprecision(2) << fps / iterationFreq << ","
+                   << total_time * 1000 << "\n";
+
+            std::cout << "performance data:\n"
+                   << "FPS: " << std::fixed << std::setprecision(2) << fps / iterationFreq << "\n"
+                   << "total time: " << total_time * 1000 << " ms\n"
+                   //<< "simulation time: " << simulation_time * 1000 << " ms\n"
+                   << "Current threads: " << num_threads << "\n"
+                   << "total nodes: " << nodes.size() << "\n"
+                   << "total springs: " << springs.size() << "\n"
+                   << "------------------------\n";
+
+
+            // output to file
+            if (outputFile.is_open()) {
+                outputFile << output.str();
             }
         }
     }
+
+    // close file stream
+    outputFile.close();
+}
 
 	// void integrate(double airFriction, double timeStep)
 	// {
