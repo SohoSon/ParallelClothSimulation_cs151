@@ -1,5 +1,9 @@
 ## OpenMP Parallel Optimization In Cloth Simulation
 ### UI
+<div class="center">
+  <img src="Images/sim1.jpg" alt="sim1" width="50%"/><img src="Images/sim2.jpg" alt="sim2" width="50%"/>
+</div>
+
 - ##### Parallel option
   - use slider to control the number of threads
 - ##### Simulation Control
@@ -8,27 +12,30 @@
     - `Push Model`
 - ##### Program Control
   - `ESC` Exit
-- ##### Draw Mode: Change the rendering mode of cloth
+  - `T` Pause the simulation
+  - `R` Resume the simulation
+- ##### Camera
+  - Using mouse to control the camera
+  - `MOUSE_BUTTON_LEFT` Click to Pan target point
+  - `MOUSE_BUTTON_RIGHT` Click to Orbit rotation
+  - `SCROLL_UP` Zoom in
+  - `SCROLL_DOWN` Zoom out
+- ##### External Force
+  - `↑` `↓` `←` `→` Apply wind force
+  - `O` Drop left pin
+  - `P` Drop right pin
+- ##### Rendering Draw Mode:
   - `Z` Node Mode
   - `X` Spring Mode
   - `C` Cloth Mode
-- ##### Camera
-  - Hold left mouse button and drag to move the camera
-  - Hold right mouse button and drag to rotate the camera
-- ##### Pause
-  - `T` Pause
-  - `R` Resume
-- ##### Wind Force
-  - `↑` `↓` `←` `→` Apply wind force
-- ##### Pin Point
-  - `O` Free left pin
-  - `P` Free right pin
 ### Environment
 - ##### OpenGL 3.3
   - GLAD
   - glfw
-  - glTools
-  - glm
+- ##### ImGui
+- ##### OpenMP
+- ##### C++
+
 ### Run the program
 - ##### Run the program
   - `make`
