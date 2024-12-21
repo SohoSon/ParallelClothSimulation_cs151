@@ -8,6 +8,11 @@
 #include <iomanip> 
 #include <unordered_map>
 #include <cmath>
+#include <iostream>
+#include <fstream>
+#include <iomanip> // for std::setprecision
+#include <sstream>
+
 
 class Cloth
 {
@@ -212,6 +217,9 @@ public:
 	}
 
 void node_based_simulation(double timeStep, Vec3 gravity, Ground* ground, Ball* ball, float cellSize) {
+   // now it can be used for output
+    std::ofstream outputFile("pull_mode_performance.txt", std::ios::app); // write mode
+
     double total_start = omp_get_wtime();
     double simulation_time = 0.0;
     //std::unordered_map<int, std::vector<Node*>> spatialHash;
@@ -476,22 +484,41 @@ void node_based_simulation(double timeStep, Vec3 gravity, Ground* ground, Ball* 
             frame_count = 0;
             last_time = current_time;
 
-            // only output performance data when FPS is updated
+            // build output string
+            std::ostringstream output;
+            // output to file
+            output << num_threads << ","
+                   << std::fixed << std::setprecision(2) << fps / iterationFreq << ","
+                   << total_time * 1000 << "\n";
+
             std::cout << "performance data:\n"
-                      << "FPS: " << std::fixed << std::setprecision(2) << fps / iterationFreq << "\n"
-                      << "total time: " << total_time * 1000 << " ms\n"
-                      << "simulation time: " << simulation_time * 1000 << " ms\n"
-                      << "Current threads: " << num_threads << "\n"
-                      << "total nodes: " << nodes.size() << "\n"
-                      << "total springs: " << springs.size() << "\n"
-                      << "------------------------\n";
+                   << "FPS: " << std::fixed << std::setprecision(2) << fps / iterationFreq << "\n"
+                   << "total time: " << total_time * 1000 << " ms\n"
+                   //<< "simulation time: " << simulation_time * 1000 << " ms\n"
+                   << "Current threads: " << num_threads << "\n"
+                   << "total nodes: " << nodes.size() << "\n"
+                   << "total springs: " << springs.size() << "\n"
+                   << "------------------------\n";
+
+            // output to terminal
+            //std::cout << output.str();
+
+            // output to file
+            if (outputFile.is_open()) {
+                outputFile << output.str();
+            }
         }
     }
+    // close file stream
+    outputFile.close();
 }
 
 
 //simulation
 void spring_based_simulation(double timeStep, Vec3 gravity, Ground* ground, Ball* ball) {
+        // open file stream
+        std::ofstream outputFile("2.txt", std::ios::app); // append mode
+        
         // init
         double total_start = omp_get_wtime();
         double simulation_time = 0.0;
@@ -628,28 +655,45 @@ void spring_based_simulation(double timeStep, Vec3 gravity, Ground* ground, Ball
             static int frame_count = 0;
             static double last_time = 0.0;
             static double fps = 0.0;
-            
+
             frame_count++;
             double current_time = omp_get_wtime();
-            
+
             // update FPS per second
             if (current_time - last_time >= 1.0) {
                 fps = frame_count / (current_time - last_time);
                 frame_count = 0;
                 last_time = current_time;
+
+                // 构建输出字符串
+                std::ostringstream output;
+
                 
-                // only output performance data when FPS is updated
+
+                // output to CSV format, for later processing
+                output << num_threads << ","
+                    << std::fixed << std::setprecision(2) << fps / iterationFreq << ","
+                    << total_time * 1000 << "\n";
+
                 std::cout << "performance data:\n"
-                        << "FPS: " << std::fixed << std::setprecision(2) << fps / iterationFreq << "\n"
-                        << "total time: " << total_time * 1000 << " ms\n"
-                        << "spring calc time: " << simulation_time * 1000 << " ms\n"
-                        //<< "Current threads: " << omp_get_max_threads() << "\n"
-                        << "Current threads: " << num_threads << "\n"
-                        << "total nodes: " << nodes.size() << "\n"
-                        << "total springs: " << springs.size() << "\n"
-                        << "------------------------\n";
+                    << "FPS: " << std::fixed << std::setprecision(2) << fps / iterationFreq << "\n"
+                    << "total time: " << total_time * 1000 << " ms\n"
+                    //<< "simulation time: " << simulation_time * 1000 << " ms\n"
+                    << "Current threads: " << num_threads << "\n"
+                    << "total nodes: " << nodes.size() << "\n"
+                    << "total springs: " << springs.size() << "\n"
+                    << "------------------------\n";
+
+
+                // output to file
+                if (outputFile.is_open()) {
+                    outputFile << output.str();
+                }
             }
-       }
+        }
+
+        // close file stream
+        outputFile.close();
     }
 
 

@@ -1,3 +1,15 @@
+# Final Project: CS 151 Parallel Optimization In Cloth Simulation
+### UI
+<div class="center">
+  <img src="Images/sim1.jpg" alt="sim1" width="30%"/><img src="Images/sim2.jpg" alt="sim2" width="30%"/>
+</div>
+
+- ##### Parallel option
+  - use slider to control the number of threads
+- ##### Simulation Control
+  - two modes:
+    - `Pull Model`
+    - `Push Model`
 # Final Project: Cloth Simulation
 ### UI
 - ##### Program Control
@@ -25,3 +37,11 @@
 - ##### ImGui
 - ##### OpenMP
 - ##### C++
+
+### Run the program
+- ##### Run the program
+  - `make`
+  - `./ClothSimulation`
+
+### Code skeleton from https://github.com/xxMeow/ClothSimulation
+### Thanks to xxMeow for the great work!
